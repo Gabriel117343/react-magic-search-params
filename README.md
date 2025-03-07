@@ -1,3 +1,10 @@
+[![Version](https://img.shields.io/npm/v/react-magic-search-params?style=flat-square&color=blue)](https://www.npmjs.com/package/react-magic-search-params)
+[![Downloads](https://img.shields.io/npm/dm/react-magic-search-params?style=flat-square&color=green)](https://www.npmjs.com/package/react-magic-search-params)
+[![License: MIT](https://img.shields.io/npm/l/react-magic-search-params?style=flat-square&color=yellow)](https://opensource.org/licenses/MIT)
+[![React](https://img.shields.io/badge/React-%5E16.8.0-blue)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-%5E3.8-blueviolet)](https://www.typescriptlang.org/)
+[![Issues](https://img.shields.io/github/issues/user/react-magic-search-params?style=flat-square&color=red)](https://github.com/user/react-magic-search-params/issues)
+
 # `react-magic-search-params` 🪄 <img src="https://static-production.npmjs.com/255a118f56f5346b97e56325a1217a16.svg" width="20px" height="20px" title="This package contains built-in TypeScript declarations" alt="TypeScript icon, indicating that this package has built-in type declarations" class="aa30d277 pl3" data-nosnippet="true">
 
 <img src="https://github.com/user-attachments/assets/1f437570-6f30-4c10-b27d-b876f5c557bd" alt="Screenshot" width="800px" />
