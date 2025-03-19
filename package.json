@@ -1,5 +1,9 @@
 {
   "description": "#️⃣ A React Hook for advanced, typed management of URL search parameters, providing built-in TypeScript autocomplete.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Gabriel117343/react-magic-search-params"
+   },
   "keywords": [
     "react",
     "hook",
@@ -8,7 +12,7 @@
     "typescript",
     "autocomplete"
   ],
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "MIT",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
