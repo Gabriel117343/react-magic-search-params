@@ -1,69 +1,75 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 
-import { paramsUsers, type TagsUserProps } from "../src/constants/defaulParamsPage";
-import { DarkSvg } from "./components/ui/svg/DarkSvg";
-import { LightSvg } from "./components/ui/svg/LightSvg";
-import { useHandleTheme } from "./hooks/useHandleTheme";
-import { useMagicSearchParams } from 'react-magic-search-params'
+import {
+  paramsUsers,
+  paramsUserConfig,
+  type TagsUserProps,
+} from "../constants/userParamsPage";
+import { DarkSvg } from "./ui/svg/DarkSvg";
+import { LightSvg } from "./ui/svg/LightSvg";
+import { useHandleTheme } from "../hooks/useHandleTheme";
+import { useMagicSearchParams } from "react-magic-search-params";
+import { debounce } from "es-toolkit";
+import { CurrentParameters } from "./currentParameters";
 
-import { debounce } from 'es-toolkit'
+import { SideModal } from "./SideModal"
 
-export default function App() {
-
+export const UserContainer = () => {
   /**
    * Initializes the hook with the mandatory and optional parameters defined in paramsUsers.
    * - defaultParams: Sets the default mandatory parameters when loading the component.
    * - forceParams: Forces the value of page_size to 10, preventing the user from modifying it.
    * - omitParamsByValues: Omits values like 'all' and 'default' from the URL.
    */
-  const { searchParams, getParams, updateParams, clearParams, getParam, onChange } =
-    useMagicSearchParams({
-      ...paramsUsers,
-      defaultParams: paramsUsers.mandatory,
-      forceParams: { page_size: 10 },
-      arraySerialization: "csv", // tags=tag1,tag2,tag3
-      omitParamsByValues: ["all", "default"], // when 'all' or 'default' is sent in the URL, they will be omitted
-    });
-  const {  } = useHandleTheme();
 
+  const {
+    searchParams,
+    getParams,
+    updateParams,
+    clearParams,
+    getParam,
+    onChange,
+  } = useMagicSearchParams(paramsUserConfig);
+
+  const searchRef = useRef<HTMLInputElement>(null);
+  const orderRef = useRef<HTMLSelectElement>(null);
+
+  const { theme, onChangeTheme } = useHandleTheme();
   const { page, search, order, only_is_active, tags } = getParams({
     convert: true,
   });
+  const tagsWithoutConvert: string = getParam("tags", { convert: false });
+
   // In cases where a series of asynchronous or synchronous actions are required when a parameter changes
   useEffect(() => {
-    const sub1 = 'search'
+    const sub1 = "search";
     // const sub2 = 'tags'
     function fetchData() {
       // it can be an API call or any other asynchronous operation
       return new Promise((resolve) => {
         setTimeout(() => {
-          resolve('some data')
-        }, 2000)
-      })
-
+          resolve("some data");
+        }, 2000);
+      });
     }
     function showData(data) {
-      console.log('showData', data)
+      console.log("showData", data);
     }
     function message() {
-
-      console.log('message')
-      alert(`parameter change ${sub1} detected`)
+      console.log("message");
+      alert(`parameter change ${sub1} detected`);
     }
 
     onChange(sub1, [
       async () => {
         const data = await fetchData();
-        showData(data)
+        showData(data);
       },
-      message
-    ])
+      message,
+
+    ]);
     // onChange(sub2, [])
-
-  }, [onChange])
-
-
-  const { tags: tagsWithoutConvert } = getParams({ convert: true });
+  }, [onChange]);
 
   const tagsArray = getParam("tags", { convert: false });
   console.log(tagsArray); // react,node,javascript
@@ -73,14 +79,11 @@ export default function App() {
    */
   const TIEMPO_RETRASO = 500;
 
-
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const searchTerm = e.target.value.trim();
     updateParams({ newParams: { search: searchTerm, page: 1 } });
-  }
-  const searchDebounce = debounce(handleSearchChange, TIEMPO_RETRASO)
-
-
+  };
+  const searchDebounce = debounce(handleSearchChange, TIEMPO_RETRASO);
 
   /**
    * Handles the change in the sorting select.
@@ -102,7 +105,6 @@ export default function App() {
    */
   const availableTags = ["react", "node", "typescript", "javascript"];
   const handleTagToggle = (tag: TagsUserProps) => {
-
     const tagsFiltered = [...tags];
     if (tagsFiltered.includes(tag)) {
       const index = tagsFiltered.indexOf(tag);
@@ -119,6 +121,9 @@ export default function App() {
 
   const handleClear = () => {
     // The values of the mandatory parameters that were modified are maintained, otherwise they are reset to the default values
+    searchRef.current.value = "";
+    orderRef.current.value = "all";
+
     clearParams({ keepMandatoryParams: false });
   };
 
@@ -133,8 +138,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center p-6  bg-gradient-to-r dark:from-blue-700 dark:via-blue-800 dark:to-blue-900 dark:text-white ">
-       <LightSvg width={24} height={24} />
+    <main className="w-full relative">
+     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-6  bg-gradient-to-r dark:from-blue-700 dark:via-blue-800 dark:to-blue-900 dark:text-white ">
+      <LightSvg width={24} height={24} />
       <div className="absolute top-0 right-0 p-4">
         <button
           className="p-4 bg-slate-200 rounded-sm hover:bg-slate-300"
@@ -151,9 +157,7 @@ export default function App() {
         {theme === "dark" && (
           <div className="absolute top-0 left-0 right-0 bottom-0 filter blur-2xl hover:blur-3xl bg-black opacity-40 -z-10 "></div>
         )}
-        <h1 className="text-3xl font-bold mb-6 text-center">
-          User Management
-        </h1>
+        <h1 className="text-3xl font-bold mb-6 text-center">User Management</h1>
 
         {/* Search Section */}
         <div className="mb-6">
@@ -166,6 +170,7 @@ export default function App() {
           <input
             type="text"
             id="search"
+            ref={searchRef}
             onChange={searchDebounce}
             placeholder="Enter first or last name..."
             className="w-full border border-gray-300 rounded-md p-3 focus:ring-blue-500 focus:border-blue-500"
@@ -185,13 +190,20 @@ export default function App() {
           <select
             id="order"
             value={order}
+            ref={orderRef}
             onChange={handleOrderChange}
             defaultValue={order}
             className="w-full border border-gray-300 rounded-md p-3 focus:ring-blue-500 focus:border-blue-500 dark:text-white "
           >
-            <option value="all" className="dark:bg-sky-950">None(all)</option>
-            <option value="asc" className="dark:bg-sky-950">Ascending(asc)</option>
-            <option value="desc" className="dark:bg-sky-950">Descending(desc)</option>
+            <option value="all" className="dark:bg-sky-950">
+              None(all)
+            </option>
+            <option value="asc" className="dark:bg-sky-950">
+              Ascending(asc)
+            </option>
+            <option value="desc" className="dark:bg-sky-950">
+              Descending(desc)
+            </option>
           </select>
         </div>
 
@@ -224,7 +236,6 @@ export default function App() {
           <h3 className="text-lg font-semibold mb-3">Select Tags:</h3>
           <div className="flex flex-wrap gap-2">
             {availableTags.map((tag: TagsUserProps) => {
-              
               const isActive = Array.isArray(tags) && tags.includes(tag);
               return (
                 <button
@@ -244,38 +255,15 @@ export default function App() {
         </div>
 
         {/* Current Parameters Section */}
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-3">Current Parameters:</h3>
-          <div className="bg-gray-50 p-5 rounded-md shadow-inner dark:bg-zinc-900">
-            <p>
-              <strong>Page:</strong> {page}
-            </p>
-            <p>
-              <strong>Page Size:</strong> {10}
-            </p>
-            <p>
-              <strong>Only Active:</strong>{" "}
-              {converStringBoolean(only_is_active) ? "Yes" : "No"}
-            </p>
-            <p>
-              <strong>Tags:</strong> {JSON.stringify(tags)}
-            </p>
-            <hr className="mt-2" />
-            <small className="bg-yellow-300 rounded-sm p-0.5 dark:bg-cyan-600">
-              Note: This is how they should be sent to the backend
-            </small>
-            <p>
-              <strong>Tags without conversion:</strong>{" "}
-              {JSON.stringify(tagsWithoutConvert)}
-            </p>
-            <p>
-              <strong>Order:</strong> {order || "None"}
-            </p>
-            <p>
-              <strong>Search:</strong> {search || "None"}
-            </p>
-          </div>
-        </div>
+        <CurrentParameters
+          onConvertStringBoolean={converStringBoolean}
+          page={page}
+          only_is_active={only_is_active}
+          tags={tags}
+          order={order}
+          search={search}
+          tagsWithoutConvert={tagsWithoutConvert}
+        />
 
         {/* Action Buttons */}
         <div className="flex space-x-4 justify-center">
@@ -294,7 +282,8 @@ export default function App() {
         </div>
         <div className="mt-6 bg-gray-50 p-5 rounded-md shadow-inner">
           <p className="text-sm text-gray-600">
-            Try refreshing the page and see how the parameters are maintained or cleared based on the actions taken.
+            Try refreshing the page and see how the parameters are maintained or
+            cleared based on the actions taken.
           </p>
         </div>
       </div>
@@ -327,5 +316,8 @@ export default function App() {
         </form>
       </div>
     </div>
+
+    <SideModal />
+    </main>
   );
 }

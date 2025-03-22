@@ -1,1 +1,1 @@
-export { useMagicSearchParams } from './useMagicSearchParams';
+export { useMagicSearchParams, UseMagicSearchParamsOptions } from './useMagicSearchParams';

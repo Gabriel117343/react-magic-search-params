@@ -52,7 +52,6 @@ export const useMagicSearchParams = <
   omitParamsByValues = [] as Array<'all' | 'default' | 'unknown' | 'none' | 'void '>
 }: UseMagicSearchParamsOptions<M, O>)=> {
 
-
   const [searchParams, setSearchParams] = useSearchParams() 
     // Ref to store subscriptions: { paramName: [callback1, callback2, ...] }
   const subscriptionsRef = useRef<Record<string, Array<() => unknown>>>({}); 
@@ -151,7 +150,6 @@ export const useMagicSearchParams = <
 
       }
     });
-    console.log({updatedParams})
     return updatedParams
   };
 
@@ -195,7 +193,6 @@ export const useMagicSearchParams = <
         newParam.set(key, params[key] as string)
       }
     }
-    console.log({FINAL: newParam.toString()})
     return newParam
   }
   // @ts-ignore
@@ -343,6 +340,11 @@ export const useMagicSearchParams = <
       return arraySerialization === 'brackets' ? getParamsObj(searchParams) : Object.fromEntries(searchParams.entries())
     }, [searchParams, arraySerialization])
 
+    /**
+      * Gets the current parameters from the URL and converts them to their original type if desired
+     * @param convert - If true, converts from string to the inferred type (number, boolean, ...)
+     * @returns - Returns the current parameters of the URL
+     */
     const getParams = ({ convert = true } = {}): MergeParams<M, O> => {
       // All the paramteres are extracted from the URL and converted into an object
 
@@ -362,6 +364,13 @@ export const useMagicSearchParams = <
   type keys = keyof MergeParams<M, O>
   // Note: in this way the return of the getParam function is typed dynamically, thus having autocomplete in the IDE (eg: value.split(','))
   type TagReturn<T extends boolean> = T extends true ? string[] : string;
+  /**
+    * Gets the value of a parameter from the URL and converts it to its original type if desired
+   * @param key - Key of the parameter
+   * @param options - Options to convert the value to its original type, default is true
+   * @returns - Returns the value of the parameter
+   */
+
   const getParam = <T extends boolean>(key: keys, options?: { convert: T }): TagReturn<T>  => {
 
     const keyStr = String(key)
@@ -434,6 +443,10 @@ export const useMagicSearchParams = <
 
     return paramsUrlFound
   }
+  /**
+   clears the parameters of the URL, keeping the mandatory parameters
+   * @param keepMandatoryParams - If true, the mandatory parameters are kept in the URL
+   */
 
   const clearParams = ({ keepMandatoryParams = true } = {}): void => {
     // for default, the mandatory parameters are not cleared since the current pagination would be lost
@@ -454,6 +467,11 @@ export const useMagicSearchParams = <
   type KeepParamsTransformedValuesBoolean = Partial<Record<keyof typeof TOTAL_PARAMS_PAGE, boolean>>
   type NewParams = Partial<typeof TOTAL_PARAMS_PAGE> 
   type KeepParams = KeepParamsTransformedValuesBoolean
+  /**
+   Merges the new parameters with the current ones, omits the parameters that are not sent and sorts them according to the structure
+   * @param newParams - New parameters to be sent in the URL
+   * @param keepParams - Parameters to keep in the URL, default is true
+   */
   const updateParams = ({ newParams = {} as NewParams, keepParams = {} as KeepParams } = {}) => {
 
     if (
@@ -474,7 +492,11 @@ export const useMagicSearchParams = <
 
   }
 
-    // only for the keys of the parameters to subscribe to changes in the URL to trigger the callback
+  /**
+   * @param paramName - Name of the parameter to subscribe to
+   * @param callbacks - Callbacks to be executed when the parameter changes
+   * @returns - Returns the function to unsubscribe
+   */
     const onChange = useCallback( (paramName: keys, callbacks: Array<() => void>) => {
       const paramNameStr = String(paramName)
       // replace the previous callbacks with the new ones so as not to accumulate callbacks
@@ -491,8 +513,6 @@ export const useMagicSearchParams = <
         if (newValue !== oldValue) {
           
           for (const callback of value) {
-            console.log(value)
-
             callback()
 
           }
@@ -512,3 +532,4 @@ export const useMagicSearchParams = <
     onChange
   }
 }
+

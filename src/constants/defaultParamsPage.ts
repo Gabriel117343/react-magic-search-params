@@ -1,5 +1,5 @@
 
-// Note: don't change this file to ensure the correct operation of the tests
+// Note: don't change this file if you want to ensure the correct operation of the tests
 export const paramsUsers = {
   mandatory: {
     page: 1,
