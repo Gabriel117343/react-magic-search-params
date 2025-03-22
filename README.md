@@ -516,6 +516,10 @@ El hook `useMagicSearchParams` aporta:
 Se recomienda ajustarlo o expandirlo según las necesidades de cada proyecto, añadiendo, por ejemplo, validaciones avanzadas o conversiones adicionales de tipos.
 
 ---
+
+> [!TIP]
+> Puede encontrar ejemplos prácticos de cómo implementar este Hook en ***proyectos grandes**, en el [archivo de ejemplo](./example).
+
 </details>
 
 ## Table of Contents 📑
@@ -1071,6 +1075,9 @@ The `useMagicSearchParams` hook provides:
 It’s recommended to adjust or expand it based on each project’s needs, for example by adding advanced validations or additional type conversions.
 
 ---
+
+> [!TIP]
+> You can find practical examples of how to implement these hooks, saving you hundreds of lines of code in ***large projects**, in the [example file](./example).
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/acd13a47-dcd3-488c-b0be-69ce466bb106" alt="Captura de pantalla" width="500px" />
