@@ -7,7 +7,7 @@ export type TagsUserProps = 'uno' | 'dos' | 'tres' | 'react' | 'node' | 'typescr
 export const paramsUsers = {
   mandatory: {
     page: 1,
-    page_size: 10 as const, // Forzar el tamaño de página a 10
+    page_size: 10 as const, // Force to 10 as default
     only_is_active: false,
     tags: ['uno', 'dos', 'tres', 'tres'] as Array<TagsUserProps>, // Array de strings representados en la url como ej: tags=tag1,tag2,tag3
 

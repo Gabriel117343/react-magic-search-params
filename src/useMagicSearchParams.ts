@@ -80,7 +80,6 @@ export const useMagicSearchParams = <
     // Note: We cannot modify the object of the final parameters directly, as immutability must be maintained
     const updatedParams = { ...finallyParams };
   
-
     if (ARRAY_KEYS.length === 0) return updatedParams;
   
     ARRAY_KEYS.forEach((key) => {
@@ -100,17 +99,14 @@ export const useMagicSearchParams = <
           // Here we get all ocurrences of key
           const urlParams = searchParams.getAll(key) as Array<string>
           currentValues = urlParams.length > 0 ? urlParams : []
-          
-          console.log({REPEAT: currentValues})
+
           break;
         }
         case 'brackets': {
            // Build URLSearchParams from current parameters (to ensure no serialized values are taken previously)
             const urlParams = searchParams.getAll(`${key}[]`) as Array<string>
             currentValues = urlParams.length > 0 ? urlParams : []
-            console.log({BRACKETS: urlParams})
-        
-    
+
             break;
         }
         default: {
@@ -132,15 +128,11 @@ export const useMagicSearchParams = <
           combined = currentValues.includes(incoming)
             ? currentValues.filter((v) => v !== incoming)
             : [...currentValues, incoming];
-          console.log({currentValues})
-            console.log({incoming})
-          console.log({CONBINED_STRING: combined})
         } else if (Array.isArray(incoming)) {
           // if an array is passed, repeated values are merged into a single value
           // Note: Set is used to remove duplicates
           combined = Array.from(new Set([ ...incoming]));
-          console.log({incoming})
-          console.log({combined})
+
         } else {
        
           combined = currentValues;
@@ -173,7 +165,7 @@ export const useMagicSearchParams = <
           } case 'repeat': {
       
             for (const item of arrayValue) {
-              console.log({item})
+
               // add new value to the key, instead of replacing it
               newParam.append(key, item as string)
    
@@ -521,7 +513,6 @@ export const useMagicSearchParams = <
         previousParamsRef.current[key] = newValue
       }
 
-      
     }, [CURRENT_PARAMS_URL])
   return {
     searchParams,
