@@ -37,7 +37,7 @@
     "prepare": "tsdx build",
     "size": "size-limit",
     "analyze": "size-limit --why",
-    "prepack": "cp README_NPM.md README.md",
+    "prepack": "copy README_NPM.md README.md",
     "postpack": "git checkout -- README.md"
   },
   "peerDependencies": {
