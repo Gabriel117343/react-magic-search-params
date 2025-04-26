@@ -17,7 +17,8 @@
     "use-query-parameters"
 
   ],
-  "version": "1.1.5",
+  "version": "1.2.0",
+  "private": false,
   "license": "MIT",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
@@ -35,7 +36,9 @@
     "lint": "tsdx lint",
     "prepare": "tsdx build",
     "size": "size-limit",
-    "analyze": "size-limit --why"
+    "analyze": "size-limit --why",
+    "prepack": "cp README_NPM.md README.md",
+    "postpack": "git checkout -- README.md"
   },
   "peerDependencies": {
     "react": ">=16",
@@ -70,8 +73,8 @@
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "husky": "^9.1.7",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "size-limit": "^11.2.0",
     "tsdx": "^0.14.1",
     "tslib": "^2.8.1",
@@ -79,6 +82,7 @@
     "vitest": "^3.0.8",
     "@testing-library/react": "^16.2.0"
   },
+
   "exports": {
     ".": {
       "import": "./dist/react-magic-search-params.esm.js",

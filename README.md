@@ -520,6 +520,8 @@ Se recomienda ajustarlo o expandirlo según las necesidades de cada proyecto, a�
 > [!TIP]
 > Puede encontrar ejemplos prácticos de cómo implementar este Hook en ***proyectos grandes**, en el [archivo de ejemplo](./example).
 
+Si encontraste esta libreriá útil, porfavor dale una ⭐️ al GitHub! 
+
 </details>
 
 ## Table of Contents 📑
@@ -1078,6 +1080,9 @@ It’s recommended to adjust or expand it based on each project’s needs, for e
 
 > [!TIP]
 > You can find practical examples of how to implement these hooks, saving you hundreds of lines of code in ***large projects**, in the [example file](./example).
+
+
+If you found this library helpful, please give it a ⭐️ on GitHub!
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/acd13a47-dcd3-488c-b0be-69ce466bb106" alt="Captura de pantalla" width="500px" />

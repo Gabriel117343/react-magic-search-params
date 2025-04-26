@@ -1,1 +1,5 @@
 example
+dist/**/*.map
+dist/*development.js
+README.md
+!README_NPM.md
