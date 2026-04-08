@@ -1,27 +1,16 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef } from 'react'
 
 import {
-  paramsUsers,
   paramsUserConfig,
   type TagsUserProps,
-} from "../constants/userParamsPage";
-import { DarkSvg } from "./ui/svg/DarkSvg";
-import { LightSvg } from "./ui/svg/LightSvg";
-import { useHandleTheme } from "../hooks/useHandleTheme";
-import { useMagicSearchParams } from "react-magic-search-params";
-import { debounce } from "es-toolkit";
-import { CurrentParameters } from "./currentParameters";
-
-import { SideModal } from "./SideModal"
+} from '../constants/userParamsPage'
+import { DarkSvg } from './ui/svg/DarkSvg'
+import { LightSvg } from './ui/svg/LightSvg'
+import { useHandleTheme } from '../hooks/useHandleTheme'
+import { useMagicSearchParams } from 'react-magic-search-params'
+import { CurrentParameters } from './currentParameters'
 
 export const UserContainer = () => {
-  /**
-   * Initializes the hook with the mandatory and optional parameters defined in paramsUsers.
-   * - defaultParams: Sets the default mandatory parameters when loading the component.
-   * - forceParams: Forces the value of page_size to 10, preventing the user from modifying it.
-   * - omitParamsByValues: Omits values like 'all' and 'default' from the URL.
-   */
-
   const {
     searchParams,
     getParams,
@@ -29,295 +18,258 @@ export const UserContainer = () => {
     clearParams,
     getParam,
     onChange,
-  } = useMagicSearchParams(paramsUserConfig);
+    pagination,
+  } = useMagicSearchParams(paramsUserConfig)
 
-  const searchRef = useRef<HTMLInputElement>(null);
-  const orderRef = useRef<HTMLSelectElement>(null);
+  const qDebounceRef = useRef<number | null>(null)
 
-  const { theme, onChangeTheme } = useHandleTheme();
-  const { page, search, order, only_is_active, tags } = getParams({
+  const { theme, onChangeTheme } = useHandleTheme()
+  const {
+    page = 1,
+    q = '',
+    order = '',
+    only_is_active = false,
+    tags = [],
+    cursor = '',
+  } = getParams({
     convert: true,
-  });
-  const tagsWithoutConvert: string = getParam("tags", { convert: false });
+  }) as {
+    page: number
+    q: string
+    order: string
+    only_is_active: boolean
+    tags: string[]
+    cursor: string
+  }
 
-  // In cases where a series of asynchronous or synchronous actions are required when a parameter changes
+  const tagsWithoutConvert = String(getParam('tags', { convert: false }))
+
   useEffect(() => {
-    const sub1 = "search";
-    // const sub2 = 'tags'
-    function fetchData() {
-      // it can be an API call or any other asynchronous operation
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          resolve("some data");
-        }, 2000);
-      });
-    }
-    function showData(data) {
-      console.log("showData", data);
-    }
-    function message() {
-      console.log("message");
-      alert(`parameter change ${sub1} detected`);
-    }
-
-    onChange(sub1, [
-      async () => {
-        const data = await fetchData();
-        showData(data);
+    const unsubQ = onChange('q', [
+      ({ previousValue, currentValue }) => {
+        // Useful in real apps for analytics, traces, or API orchestration
+        // eslint-disable-next-line no-console
+        console.log('q changed', { previousValue, currentValue })
       },
-      message,
+    ])
 
-    ]);
-    // onChange(sub2, [])
-  }, [onChange]);
+    const unsubCursor = onChange('cursor', [
+      ({ currentValue }) => {
+        // eslint-disable-next-line no-console
+        console.log('cursor changed', { currentValue })
+      },
+    ])
 
-  const tagsArray = getParam("tags", { convert: false });
-  console.log(tagsArray); // react,node,javascript
-  /**
-   * Handles the change in the search field.
-   * - Updates the 'search' parameter and resets to page 1.
-   */
-  const TIEMPO_RETRASO = 500;
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const searchTerm = e.target.value.trim();
-    updateParams({ newParams: { search: searchTerm, page: 1 } });
-  };
-  const searchDebounce = debounce(handleSearchChange, TIEMPO_RETRASO);
-
-  /**
-   * Handles the change in the sorting select.
-   * - Updates the 'order' parameter while keeping other parameters intact.
-   */
-  const handleOrderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedOrder = e.target.value;
-    updateParams({ newParams: { order: selectedOrder } });
-  };
-
-  /**
-   * handleTagToggle
-   * INPUT PARAMETERS:
-   * case 1 (array of tags): [1,2,3,4] result: tags=1,2,3,4, if another array of tags with repeated values is passed, unique values are maintained
-   * Useful for applying a set of tags at once
-   *
-   * case 2 (a single tag): 1 result: tags=1, if an existing tag is passed, it is removed from the list of tags
-   * Useful for toggling tags by pressing button by button
-   */
-  const availableTags = ["react", "node", "typescript", "javascript"];
-  const handleTagToggle = (tag: TagsUserProps) => {
-    const tagsFiltered = [...tags];
-    if (tagsFiltered.includes(tag)) {
-      const index = tagsFiltered.indexOf(tag);
-      tagsFiltered.splice(index, 1);
-    } else {
-      tagsFiltered.push(tag);
+    return () => {
+      unsubQ()
+      unsubCursor()
     }
-    updateParams({ newParams: { tags: [...tagsFiltered] } });
-  };
-  console.log({ searchTags: searchParams.getAll("tags") }); // tags=react,node,javascript
-  /**
-   * Resets all parameters to their default values.
-   */
+  }, [onChange])
+
+  const handleQChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value
+    if (qDebounceRef.current) {
+      window.clearTimeout(qDebounceRef.current)
+    }
+
+    qDebounceRef.current = window.setTimeout(() => {
+      updateParams({
+        newParams: {
+          q: value,
+        },
+        historyMode: 'replace',
+      })
+    }, 350)
+  }
+
+  const handleOrderChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedOrder = event.target.value
+    updateParams({ newParams: { order: selectedOrder } })
+  }
+
+  const availableTags: TagsUserProps[] = ['react', 'node', 'typescript', 'javascript']
+
+  const handleTagToggle = (tag: TagsUserProps) => {
+    updateParams((prev) => {
+      const currentTags = Array.isArray(prev.tags) ? [...prev.tags] : []
+      if (currentTags.includes(tag)) {
+        return { newParams: { tags: currentTags.filter((item) => item !== tag) } }
+      }
+
+      return { newParams: { tags: [...currentTags, tag] } }
+    })
+  }
 
   const handleClear = () => {
-    // The values of the mandatory parameters that were modified are maintained, otherwise they are reset to the default values
-    searchRef.current.value = "";
-    orderRef.current.value = "all";
-
-    clearParams({ keepMandatoryParams: false });
-  };
-
-  const converStringBoolean = (value: string | boolean) => {
-    // Since a string is obtained from the URL, it is converted to boolean (ensures the change if convert: false was chosen in getParams)
-    if (typeof value === "boolean") return !value;
-    if (value === "true") {
-      return true;
-    } else if (value === "false") {
-      return false;
-    }
-  };
+    clearParams({ keepMandatoryParams: true })
+  }
 
   return (
-    <main className="w-full relative">
-     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-6  bg-gradient-to-r dark:from-blue-700 dark:via-blue-800 dark:to-blue-900 dark:text-white ">
+    <section className='min-h-screen bg-gray-100 flex flex-col items-center p-6 bg-gradient-to-r dark:from-blue-700 dark:via-blue-800 dark:to-blue-900 dark:text-white'>
       <LightSvg width={24} height={24} />
-      <div className="absolute top-0 right-0 p-4">
+      <div className='absolute top-0 right-0 p-4'>
         <button
-          className="p-4 bg-slate-200 rounded-sm hover:bg-slate-300"
+          type='button'
+          className='p-4 bg-slate-200 rounded-sm hover:bg-slate-300'
           onClick={onChangeTheme}
         >
-          {theme === "light" ? (
-            <LightSvg width={24} height={24} />
-          ) : (
-            <DarkSvg width={24} height={24} />
-          )}
+          {theme === 'light' ? <LightSvg width={24} height={24} /> : <DarkSvg width={24} height={24} />}
         </button>
       </div>
-      <div className="w-full max-w-4xl bg-white shadow-lg rounded-lg p-8 mb-6 dark:bg-transparent relative overflow-hidden z-50">
-        {theme === "dark" && (
-          <div className="absolute top-0 left-0 right-0 bottom-0 filter blur-2xl hover:blur-3xl bg-black opacity-40 -z-10 "></div>
-        )}
-        <h1 className="text-3xl font-bold mb-6 text-center">User Management</h1>
 
-        {/* Search Section */}
-        <div className="mb-6">
+      <div className='w-full max-w-4xl bg-white shadow-lg rounded-lg p-8 mb-6 dark:bg-transparent relative overflow-hidden z-50'>
+        {theme === 'dark' && (
+          <div className='absolute top-0 left-0 right-0 bottom-0 filter blur-2xl hover:blur-3xl bg-black opacity-40 -z-10' />
+        )}
+        <h1 className='text-3xl font-bold mb-6 text-center'>User Management (Scalable)</h1>
+
+        <div className='mb-6'>
           <label
-            htmlFor="search"
-            className="block text-sm font-medium text-gray-700 mb-1 dark:text-white"
+            htmlFor='q'
+            className='block text-sm font-medium text-gray-700 mb-1 dark:text-white'
           >
-            Search Users:
+            Search Users (q + debounce + replace history)
           </label>
           <input
-            type="text"
-            id="search"
-            ref={searchRef}
-            onChange={searchDebounce}
-            placeholder="Enter first or last name..."
-            className="w-full border border-gray-300 rounded-md p-3 focus:ring-blue-500 focus:border-blue-500"
-            /* Note: normally a debounce will be used so this input should be uncontrolled (defaultValue) */
-            defaultValue={search}
+            type='text'
+            id='q'
+            onChange={handleQChange}
+            placeholder='Enter first or last name...'
+            className='w-full border border-gray-300 rounded-md p-3 focus:ring-blue-500 focus:border-blue-500'
+            defaultValue={q}
           />
         </div>
 
-        {/* Sorting Section */}
-        <div className="mb-6">
+        <div className='mb-6'>
           <label
-            htmlFor="order"
-            className="block text-sm font-medium text-gray-700 mb-1 dark:text-white"
+            htmlFor='order'
+            className='block text-sm font-medium text-gray-700 mb-1 dark:text-white'
           >
-            Sort By:
+            Sort By
           </label>
           <select
-            id="order"
+            id='order'
             value={order}
-            ref={orderRef}
             onChange={handleOrderChange}
-            defaultValue={order}
-            className="w-full border border-gray-300 rounded-md p-3 focus:ring-blue-500 focus:border-blue-500 dark:text-white "
+            className='w-full border border-gray-300 rounded-md p-3 focus:ring-blue-500 focus:border-blue-500 dark:text-white'
           >
-            <option value="all" className="dark:bg-sky-950">
+            <option value='all' className='dark:bg-sky-950'>
               None(all)
             </option>
-            <option value="asc" className="dark:bg-sky-950">
+            <option value='asc' className='dark:bg-sky-950'>
               Ascending(asc)
             </option>
-            <option value="desc" className="dark:bg-sky-950">
+            <option value='desc' className='dark:bg-sky-950'>
               Descending(desc)
             </option>
           </select>
         </div>
 
-        <div className="mb-6">
-          <label
-            htmlFor="only_is_active"
-            className="flex items-center space-x-2 cursor-pointer"
-          >
+        <div className='mb-6'>
+          <label htmlFor='only_is_active' className='flex items-center space-x-2 cursor-pointer'>
             <input
-              type="checkbox"
-              id="only_is_active"
+              type='checkbox'
+              id='only_is_active'
               onChange={() =>
                 updateParams({
                   newParams: {
-                    only_is_active: converStringBoolean(only_is_active),
+                    only_is_active: !only_is_active,
                   },
                 })
               }
-              checked={converStringBoolean(only_is_active)}
-              className="text-blue-500 rounded"
+              checked={only_is_active}
+              className='text-blue-500 rounded'
             />
-            <span className="text-sm text-gray-700 dark:text-white">
-              Show only active users
-            </span>
+            <span className='text-sm text-gray-700 dark:text-white'>Show only active users</span>
           </label>
         </div>
 
-        {/* Tag Buttons */}
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-3">Select Tags:</h3>
-          <div className="flex flex-wrap gap-2">
-            {availableTags.map((tag: TagsUserProps) => {
-              const isActive = Array.isArray(tags) && tags.includes(tag);
+        <div className='mb-6'>
+          <h3 className='text-lg font-semibold mb-3'>Select Tags</h3>
+          <div className='flex flex-wrap gap-2'>
+            {availableTags.map((tag) => {
+              const isActive = Array.isArray(tags) && tags.includes(tag)
               return (
                 <button
                   key={tag}
+                  type='button'
                   onClick={() => handleTagToggle(tag)}
                   className={`px-4 py-2 rounded-md border ${
-                    isActive
-                      ? "bg-blue-500 text-white"
-                      : "bg-gray-200 text-gray-700"
+                    isActive ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
                   }`}
                 >
                   {tag}
                 </button>
-              );
+              )
             })}
           </div>
         </div>
 
-        {/* Current Parameters Section */}
         <CurrentParameters
-          onConvertStringBoolean={converStringBoolean}
           page={page}
           only_is_active={only_is_active}
           tags={tags}
           order={order}
-          search={search}
+          q={q}
+          cursor={cursor}
           tagsWithoutConvert={tagsWithoutConvert}
         />
 
-        {/* Action Buttons */}
-        <div className="flex space-x-4 justify-center">
+        <div className='flex space-x-4 justify-center flex-wrap'>
           <button
-            onClick={() => updateParams({ newParams: { page: page + 1 } })}
-            className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition duration-200"
+            type='button'
+            onClick={() => pagination.prev()}
+            className='bg-gray-700 text-white px-6 py-3 rounded-md hover:bg-gray-800 transition duration-200'
+          >
+            Prev Page
+          </button>
+          <button
+            type='button'
+            onClick={() => pagination.next()}
+            className='bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition duration-200'
           >
             Next Page
           </button>
           <button
+            type='button'
+            onClick={() => pagination.reset()}
+            className='bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700 transition duration-200'
+          >
+            Reset Page
+          </button>
+          <button
+            type='button'
+            onClick={() => pagination.setCursor(`opaque_${Date.now().toString(36)}`)}
+            className='bg-teal-600 text-white px-6 py-3 rounded-md hover:bg-teal-700 transition duration-200'
+          >
+            Set Opaque Cursor
+          </button>
+          <button
+            type='button'
+            onClick={() => pagination.setCursor('')}
+            className='bg-teal-800 text-white px-6 py-3 rounded-md hover:bg-teal-900 transition duration-200'
+          >
+            Clear Cursor
+          </button>
+          <button
+            type='button'
             onClick={handleClear}
-            className="bg-red-600 text-white px-6 py-3 rounded-md hover:bg-red-700 transition duration-200"
+            className='bg-red-600 text-white px-6 py-3 rounded-md hover:bg-red-700 transition duration-200'
           >
             Clear Filters
           </button>
         </div>
-        <div className="mt-6 bg-gray-50 p-5 rounded-md shadow-inner">
-          <p className="text-sm text-gray-600">
-            Try refreshing the page and see how the parameters are maintained or
-            cleared based on the actions taken.
+
+        <div className='mt-6 bg-gray-50 p-5 rounded-md shadow-inner'>
+          <p className='text-sm text-gray-600'>
+            Unknown params policy is set to preserve. Example: if URL has utm_source,
+            it will remain after updates.
+          </p>
+          <p className='text-sm text-gray-600 mt-2'>
+            Current URL: {searchParams.toString()}
           </p>
         </div>
       </div>
-
-      {/* Second Test Section */}
-      <div className="w-full max-w-4xl bg-white shadow-lg rounded-lg p-8 dark:bg-zinc-800">
-        <h2 className="text-2xl font-semibold mb-6">Test Form</h2>
-
-        <form className="space-y-6">
-          <div>
-            <label
-              htmlFor="testInput"
-              className="block text-sm font-medium text-gray-700 mb-1 dark:text-white"
-            >
-              Test Parameter:
-            </label>
-            <input
-              type="text"
-              id="testInput"
-              placeholder="Enter a test value..."
-              className="w-full border border-gray-300 rounded-md p-3 focus:ring-green-500 focus:border-green-500"
-            />
-          </div>
-          <button
-            type="submit"
-            className="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition duration-200"
-          >
-            Submit Test
-          </button>
-        </form>
-      </div>
-    </div>
-
-    <SideModal />
-    </main>
-  );
+    </section>
+  )
 }

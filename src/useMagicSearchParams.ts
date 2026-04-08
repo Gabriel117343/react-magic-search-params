@@ -1,432 +1,666 @@
 import { useSearchParams } from 'react-router-dom'
 import { useMemo, useEffect, useRef, useCallback } from 'react'
 
-
 // Custom hook with advanced techniques to handle search parameters for any pagination
 
 type CommonParams = {
   page?: number
   page_size?: number
 }
+
 /*
-Maps all properties of M (mandatory) as required
-and all properties of O (optional) as optional. 
+Maps all properties of M (mandatory)
+and all properties of O (optional).
 */
 type MergeParams<M, O> = {
   [K in keyof M]: M[K]
 } & {
   [K in keyof O]?: O[K]
 }
+
+export type ParamCodec<TValue> = {
+  parse?: (
+    value: string | string[] | null,
+    context: { key: string; searchParams: URLSearchParams }
+  ) => TValue
+  serialize?: (value: TValue, context: { key: string }) => string | string[] | null | undefined
+}
+
+type ParamCodecs<TParams extends Record<string, unknown>> = Partial<{
+  [K in keyof TParams]: ParamCodec<TParams[K]>
+}>
+
+type ParamKey<TParams extends Record<string, unknown>> = Extract<keyof TParams, string>
+
+export type PaginationStrategy<TParams extends Record<string, unknown>> =
+  | {
+      mode: 'page'
+      pageKey?: ParamKey<TParams>
+      pageSizeKey?: ParamKey<TParams>
+    }
+  | {
+      mode: 'offset'
+      offsetKey?: ParamKey<TParams>
+      limitKey?: ParamKey<TParams>
+    }
+  | {
+      mode: 'cursor'
+      cursorKey?: ParamKey<TParams>
+    }
+
+export type ResetOnChangeRules<TParams extends Record<string, unknown>> = Partial<
+  Record<ParamKey<TParams>, Array<ParamKey<TParams>>>
+>
+
+export type UnknownParamsPolicy = 'drop' | 'preserve'
+
+export type HistoryMode = 'push' | 'replace'
+
+export type OnChangeEvent<TParams extends Record<string, unknown>> = {
+  key: keyof TParams
+  previousValue: unknown
+  currentValue: unknown
+}
+
+type OnChangeCallback<TParams extends Record<string, unknown>> =
+  | ((event: OnChangeEvent<TParams>) => void)
+  | (() => void)
+
 /**
- * Interface for the configuration object that the hook receives 
+ * Interface for the configuration object that the hook receives
  */
 export interface UseMagicSearchParamsOptions<
   M extends Record<string, unknown>,
   O extends Record<string, unknown>
 > {
-  mandatory: M 
+  mandatory: M
   optional?: O
   defaultParams?: Partial<MergeParams<M, O>>
-  forceParams?: Partial<MergeParams<M, O>> // transform all to partial to avoid errors
-  arraySerialization?: 'csv' | 'repeat' | 'brackets' // technical to serialize arrays in the URL
-  omitParamsByValues?: Array<'all' | 'default' | 'unknown' | 'none' | 'void '> 
+  forceParams?: Partial<MergeParams<M, O>>
+  arraySerialization?: 'csv' | 'repeat' | 'brackets'
+  omitParamsByValues?: Array<'all' | 'default' | 'unknown' | 'none' | 'void'>
+  codecs?: ParamCodecs<MergeParams<M, O>>
+  historyMode?: HistoryMode
+  resetOnChange?: ResetOnChangeRules<MergeParams<M, O>>
+  paginationStrategy?: PaginationStrategy<MergeParams<M, O>>
+  unknownParamsPolicy?: UnknownParamsPolicy
 }
 
-/** 
+/**
 Generic hook to handle search parameters in the URL
 @param mandatory - Mandatory parameters (e.g., page=1, page_size=10, etc.)
 @param optional - Optional parameters (e.g., order, search, etc.)
 @param defaultParams - Default parameters sent in the URL on initialization
 @param forceParams - Parameters forced into the URL regardless of user input
-@param omitParamsByValues - Parameters omitted if they have specific values 
+@param omitParamsByValues - Parameters omitted if they have specific values
 */
 export const useMagicSearchParams = <
   M extends Record<string, unknown> & CommonParams,
-  O extends Record<string, unknown>,
+  O extends Record<string, unknown>
 >({
   mandatory = {} as M,
   optional = {} as O,
   defaultParams = {} as Partial<MergeParams<M, O>>,
   arraySerialization = 'csv',
-  forceParams = {} as  {} as Partial<MergeParams<M, O>>,
-  omitParamsByValues = [] as Array<'all' | 'default' | 'unknown' | 'none' | 'void '>
-}: UseMagicSearchParamsOptions<M, O>)=> {
+  forceParams = {} as Partial<MergeParams<M, O>>,
+  omitParamsByValues = [] as Array<'all' | 'default' | 'unknown' | 'none' | 'void'>,
+  codecs = {} as ParamCodecs<MergeParams<M, O>>,
+  historyMode = 'push',
+  resetOnChange = {} as ResetOnChangeRules<MergeParams<M, O>>,
+  paginationStrategy,
+  unknownParamsPolicy = 'drop'
+}: UseMagicSearchParamsOptions<M, O>) => {
+  type Params = MergeParams<M, O>
+  type Keys = ParamKey<Params>
+  type KeepParams = Partial<Record<Keys, boolean>>
+  type NewParams = Partial<Params>
+  type UpdateParamsObject = {
+    newParams?: NewParams | ((current: Params) => NewParams)
+    keepParams?: KeepParams
+    historyMode?: HistoryMode
+  }
+  type UpdateParamsInput =
+    | UpdateParamsObject
+    | ((current: Params) => UpdateParamsObject | NewParams)
 
-  const [searchParams, setSearchParams] = useSearchParams() 
-    // Ref to store subscriptions: { paramName: [callback1, callback2, ...] }
-  const subscriptionsRef = useRef<Record<string, Array<() => unknown>>>({}); 
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Ref to store subscriptions: { paramName: [callback1, callback2, ...] }
+  const subscriptionsRef = useRef<Record<string, Array<OnChangeCallback<MergeParams<M, O>>>>>({})
   const previousParamsRef = useRef<Record<string, unknown>>({})
 
+  const setSearchParamsWithHistory = useCallback(
+    (nextParams: URLSearchParams, modeOverride?: HistoryMode) => {
+      const modeToUse = modeOverride ?? historyMode
+      setSearchParams(nextParams, { replace: modeToUse === 'replace' })
+    },
+    [setSearchParams, historyMode]
+  )
+
   const TOTAL_PARAMS_PAGE: MergeParams<M, O> = useMemo(() => {
-    return { ...mandatory, ...optional };
-  }, [mandatory, optional]);
+    return { ...mandatory, ...optional }
+  }, [mandatory, optional])
 
   const PARAM_ORDER = useMemo(() => {
     return Array.from(Object.keys(TOTAL_PARAMS_PAGE))
   }, [TOTAL_PARAMS_PAGE])
 
-  // we get the keys that are arrays according to TOTAL_PARAMS_PAGE since these require special treatment in the URL due to serialization mode
+  const hasKnownKey = useCallback(
+    (key: string) => Object.prototype.hasOwnProperty.call(TOTAL_PARAMS_PAGE, key),
+    [TOTAL_PARAMS_PAGE]
+  )
+
+  const getRawParamValue = (key: string): string | string[] | null => {
+    const isArrayKey = Array.isArray(TOTAL_PARAMS_PAGE[key])
+    if (!isArrayKey) {
+      return searchParams.get(key)
+    }
+
+    if (arraySerialization === 'csv') {
+      return searchParams.get(key)
+    }
+    if (arraySerialization === 'repeat') {
+      return searchParams.getAll(key)
+    }
+    return searchParams.getAll(`${key}[]`)
+  }
+
+  const getUnknownEntries = useCallback((): Array<[string, string]> => {
+    if (unknownParamsPolicy === 'drop') return []
+
+    const unknownEntries: Array<[string, string]> = []
+    for (const [key, value] of searchParams.entries()) {
+      const normalizedKey = key.endsWith('[]') ? key.replace('[]', '') : key
+      if (!hasKnownKey(normalizedKey)) {
+        unknownEntries.push([key, value])
+      }
+    }
+    return unknownEntries
+  }, [unknownParamsPolicy, searchParams, hasKnownKey])
+
+  const appendUnknownEntries = useCallback(
+    (url: URLSearchParams): URLSearchParams => {
+      if (unknownParamsPolicy === 'drop') return url
+
+      const composed = new URLSearchParams(url.toString())
+      const unknownEntries = getUnknownEntries()
+      for (const [key, value] of unknownEntries) {
+        composed.append(key, value)
+      }
+      return composed
+    },
+    [unknownParamsPolicy, getUnknownEntries]
+  )
+
+  const valuesAreEqual = (left: unknown, right: unknown) => {
+    if (Array.isArray(left) && Array.isArray(right)) {
+      if (left.length !== right.length) return false
+      return left.every((value, index) => value === right[index])
+    }
+
+    return left === right
+  }
+
+  // We get the keys that are arrays according to TOTAL_PARAMS_PAGE.
   const ARRAY_KEYS = useMemo(() => {
-    return Object.keys(TOTAL_PARAMS_PAGE).filter(
-      (key) => Array.isArray(TOTAL_PARAMS_PAGE[key])
-    );
+    return Object.keys(TOTAL_PARAMS_PAGE).filter((key) => Array.isArray(TOTAL_PARAMS_PAGE[key]))
   }, [TOTAL_PARAMS_PAGE])
 
   const appendArrayValues = (
     finallyParams: Record<string, unknown>,
     newParams: Record<string, string | string[] | unknown>
   ): Record<string, unknown> => {
- 
-    // Note: We cannot modify the object of the final parameters directly, as immutability must be maintained
-    const updatedParams = { ...finallyParams };
-  
-    if (ARRAY_KEYS.length === 0) return updatedParams;
-  
+    const updatedParams = { ...finallyParams }
+
+    if (ARRAY_KEYS.length === 0) return updatedParams
+
     ARRAY_KEYS.forEach((key) => {
-      // We use the current values directly from searchParams (source of truth)
-      // This avoids depending on finallyParams in which the arrays have been omitted
-      let currentValues = []; 
+      let currentValues: string[] = []
+
       switch (arraySerialization) {
         case 'csv': {
-          const raw = searchParams.get(key) || '';
-          // For csv we expect "value1,value2,..." (no prefix)
-          currentValues = raw.split(',')
+          const raw = searchParams.get(key) || ''
+          currentValues = raw
+            .split(',')
             .map((v) => v.trim())
-            .filter(Boolean) as Array<string>
-          break;
+            .filter(Boolean)
+          break
         }
         case 'repeat': {
-          // Here we get all ocurrences of key
           const urlParams = searchParams.getAll(key) as Array<string>
           currentValues = urlParams.length > 0 ? urlParams : []
-
-          break;
+          break
         }
         case 'brackets': {
-           // Build URLSearchParams from current parameters (to ensure no serialized values are taken previously)
-            const urlParams = searchParams.getAll(`${key}[]`) as Array<string>
-            currentValues = urlParams.length > 0 ? urlParams : []
-
-            break;
+          const urlParams = searchParams.getAll(`${key}[]`) as Array<string>
+          currentValues = urlParams.length > 0 ? urlParams : []
+          break
         }
         default: {
-          // Mode by default works as csv
-          const raw = searchParams.get(key) ?? '';
-          currentValues = raw.split(',')
+          const raw = searchParams.get(key) ?? ''
+          currentValues = raw
+            .split(',')
             .map((v) => v.trim())
-            .filter(Boolean);
-          }
-        break; 
+            .filter(Boolean)
+        }
       }
-      // Update array values with new ones
-    
+
       if (newParams[key] !== undefined) {
-        const incoming = newParams[key];
+        const incoming = newParams[key]
         let combined: string[] = []
+
         if (typeof incoming === 'string') {
-          // If it is a string, it is toggled (add/remove)
           combined = currentValues.includes(incoming)
             ? currentValues.filter((v) => v !== incoming)
-            : [...currentValues, incoming];
+            : [...currentValues, incoming]
         } else if (Array.isArray(incoming)) {
-          // if an array is passed, repeated values are merged into a single value
-          // Note: Set is used to remove duplicates
-          combined = Array.from(new Set([ ...incoming]));
-
+          combined = Array.from(new Set([...incoming.map(String)]))
         } else {
-       
-          combined = currentValues;
+          combined = currentValues
         }
 
         updatedParams[key] = combined
-
       }
-    });
+    })
+
     return updatedParams
-  };
+  }
 
   const transformParamsToURLSearch = (params: Record<string, unknown>): URLSearchParams => {
-    console.log({PARAMS_RECIBIDOS_TRANSFORM: params})
-
     const newParam: URLSearchParams = new URLSearchParams()
-
     const paramsKeys = Object.keys(params)
 
     for (const key of paramsKeys) {
+      const codec = codecs[key as keyof MergeParams<M, O>]
+      if (codec?.serialize) {
+        const serializedValue = (
+          codec.serialize as (
+            value: unknown,
+            context: { key: string }
+          ) => string | string[] | null | undefined
+        )(params[key], { key })
+
+        if (serializedValue == null) {
+          continue
+        }
+
+        if (Array.isArray(serializedValue)) {
+          if (Array.isArray(TOTAL_PARAMS_PAGE[key])) {
+            if (arraySerialization === 'csv') {
+              newParam.set(key, serializedValue.join(','))
+            } else if (arraySerialization === 'repeat') {
+              for (const item of serializedValue) {
+                newParam.append(key, String(item))
+              }
+            } else {
+              for (const item of serializedValue) {
+                newParam.append(`${key}[]`, String(item))
+              }
+            }
+          } else if (serializedValue.length > 0) {
+            newParam.set(key, String(serializedValue[0]))
+          }
+        } else {
+          newParam.set(key, String(serializedValue))
+        }
+        continue
+      }
+
       if (Array.isArray(TOTAL_PARAMS_PAGE[key])) {
         const arrayValue = params[key] as unknown[]
-        console.log({arrayValue})
         switch (arraySerialization) {
           case 'csv': {
-            const csvValue = arrayValue.join(',')
-            // set ensure that the previous value is replaced
-            newParam.set(key, csvValue)
+            newParam.set(key, arrayValue.join(','))
             break
-          } case 'repeat': {
-      
+          }
+          case 'repeat': {
             for (const item of arrayValue) {
-
-              // add new value to the key, instead of replacing it
-              newParam.append(key, item as string)
-   
+              newParam.append(key, String(item))
             }
             break
-          } case 'brackets': {
+          }
+          case 'brackets': {
             for (const item of arrayValue) {
-              newParam.append(`${key}[]`, item as string)
+              newParam.append(`${key}[]`, String(item))
             }
             break
-          } default: {
-            const csvValue = arrayValue.join(',')
-            newParam.set(key, csvValue)
+          }
+          default: {
+            newParam.set(key, arrayValue.join(','))
           }
         }
       } else {
-        newParam.set(key, params[key] as string)
+        newParam.set(key, String(params[key]))
       }
     }
+
     return newParam
   }
-  // @ts-ignore
-  const hasForcedParamsValues = ({ paramsForced, compareParams }) => {
 
-    // Iterates over the forced parameters and verifies that they exist in the URL and match their values
-    // Ej: { page: 1, page_size: 10 } === { page: 1, page_size: 10 } => true
+  const getDefaultValueForKey = (key: string, fallback: unknown) => {
+    if (Object.prototype.hasOwnProperty.call(mandatory, key)) {
+      return mandatory[key as keyof typeof mandatory]
+    }
+    if (Object.prototype.hasOwnProperty.call(defaultParams, key)) {
+      return defaultParams[key as keyof typeof defaultParams]
+    }
+    return fallback
+  }
+
+  const hasForcedParamsValues = ({
+    paramsForced,
+    compareParams
+  }: {
+    paramsForced: Record<string, unknown>
+    compareParams: Record<string, unknown>
+  }) => {
     const allParamsMatch = Object.entries(paramsForced).every(
       ([key, value]) => compareParams[key] === value
-    );
+    )
 
-    return allParamsMatch;
-  };
-  
-  useEffect(() => {
-
-    const keysDefaultParams: string[] = Object.keys(defaultParams)
-    const keysForceParams: string[] = Object.keys(forceParams)
-    if(keysDefaultParams.length === 0 && keysForceParams.length === 0) return
-  
-
-    function handleStartingParams() {
-
-      const defaultParamsString  = transformParamsToURLSearch(defaultParams).toString()
-      const paramsUrl = getParams()
-      const paramsUrlString = transformParamsToURLSearch(paramsUrl).toString()
-      const forceParamsString = transformParamsToURLSearch(forceParams).toString()
-
-      console.log({defaultParamsString})
-
-      const isForcedParams: boolean = hasForcedParamsValues({ paramsForced: forceParams, compareParams: paramsUrl })
-
-      if (!isForcedParams) {
-
-        // In this case, the forced parameters take precedence over the default parameters and the parameters of the current URL (which could have been modified by the user, e.g., page_size=1000)
-
-        updateParams({ newParams: {
-          ...defaultParams,
-          ...forceParams
-        }})
-        return
-      }
-      // In this way it will be validated that the forced parameters keys and values are in the current URL
-      const isIncludesForcedParams = hasForcedParamsValues({ paramsForced: forceParamsString, compareParams: defaultParams })
-
-      if (keysDefaultParams.length > 0 && isIncludesForcedParams) {
-        if (defaultParamsString === paramsUrlString) return // this means that the URL already has the default parameters
-        updateParams({ newParams: defaultParams })
-      }
-
-    }
-    handleStartingParams()
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    return allParamsMatch
+  }
 
   /**
    * Convert a string value to its original type (number, boolean, array) according to TOTAL_PARAMS_PAGE
-   * @param value - Chain obtained from the URL
-   * @param key - Key of the parameter
    */
-  const convertOriginalType = (value: string, key: string) => {
-    // Given that the parameters of a URL are recieved as strings, they are converted to their original type
-    if (typeof TOTAL_PARAMS_PAGE[key] === 'number') {
-      return parseInt(value)
-    } else if (typeof TOTAL_PARAMS_PAGE[key] === 'boolean') {
-      return value === 'true'
-    } else if (Array.isArray(TOTAL_PARAMS_PAGE[key])) {
-      // The result will be a valid array represented in the URL ej: tags=tag1,tag2,tag3 to ['tag1', 'tag2', 'tag3'], useful to combine the values of the arrays with the new ones
- 
-      if (arraySerialization === 'csv') {
-        return searchParams.getAll(key).join('').split(',')
-      } else if (arraySerialization === 'repeat') {
-    
-        console.log({SEARCH_PARAMS: searchParams.getAll(key)})
-        return searchParams.getAll(key)
-      } else if (arraySerialization === 'brackets') {
-        return searchParams.getAll(`${key}[]`)
-      }
-     
-     
+  const convertOriginalType = (key: string) => {
+    const rawValue = getRawParamValue(key)
+    const codec = codecs[key as keyof MergeParams<M, O>]
+    if (codec?.parse) {
+      return codec.parse(rawValue, { key, searchParams })
     }
-    // Note: dates are not converted as it is better to handle them directly in the component that receives them, using a library like < date-fns >
-    return value
-  }
-  
-    /**
-   * Gets the current parameters from the URL and converts them to their original type if desired
-   * @param convert - If true, converts from string to the inferred type (number, boolean, ...)
-   */
-    const getStringUrl = (key: string, paramsUrl: Record<string, unknown>) => {
-      const isKeyArray = Array.isArray(TOTAL_PARAMS_PAGE[key])
-      if (isKeyArray) {
 
-        if (arraySerialization === 'brackets') {
-
-          const arrayUrl = searchParams.getAll(`${key}[]`)
-          const encodedQueryArray = transformParamsToURLSearch({ [key]: arrayUrl }).toString()
-          // in this way the array of the URL is decoded to its original form ej: tags[]=tag1&tags[]=tag2&tags[]=tag3
-          const unencodeQuery = decodeURIComponent(encodedQueryArray)
-          return unencodeQuery
-        } else if (arraySerialization === 'csv') {
-          const arrayValue = searchParams.getAll(key)
-          const encodedQueryArray = transformParamsToURLSearch({ [key]: arrayValue }).toString()
-          const unencodeQuery = decodeURIComponent(encodedQueryArray)
-          return unencodeQuery
-        }
-        const arrayValue = searchParams.getAll(key)
-        const stringResult = transformParamsToURLSearch({ [key]: arrayValue }).toString()
-        return stringResult
-      } else {
-   
-        return paramsUrl[key] as string
+    if (typeof TOTAL_PARAMS_PAGE[key] === 'number') {
+      const parsed = Number.parseInt(String(rawValue ?? ''), 10)
+      if (Number.isNaN(parsed)) {
+        const defaultNumber = getDefaultValueForKey(key, 0)
+        return typeof defaultNumber === 'number' ? defaultNumber : 0
       }
-     }
-     const getParamsObj = (searchParams: URLSearchParams): Record<string, string | string[]> => {
-      const paramsObj: Record<string, string | string[]> = {};
-      // @ts-ignore
-      for (const [key, value] of searchParams.entries()) {
-        if (key.endsWith('[]')) {
-          const bareKey = key.replace('[]', '');
-          if (paramsObj[bareKey]) {
-            (paramsObj[bareKey] as string[]).push(value);
+      return parsed
+    }
+
+    if (typeof TOTAL_PARAMS_PAGE[key] === 'boolean') {
+      return String(rawValue) === 'true'
+    }
+
+    if (Array.isArray(TOTAL_PARAMS_PAGE[key])) {
+      if (arraySerialization === 'csv') {
+        return String(rawValue ?? '').split(',').filter(Boolean)
+      }
+      return Array.isArray(rawValue) ? rawValue : rawValue ? [rawValue] : []
+    }
+
+    if (Array.isArray(rawValue)) {
+      return rawValue[0] ?? ''
+    }
+
+    return rawValue ?? ''
+  }
+
+  const getStringUrl = (key: string, paramsUrl: Record<string, unknown>) => {
+    const isKeyArray = Array.isArray(TOTAL_PARAMS_PAGE[key])
+    if (isKeyArray) {
+      if (arraySerialization === 'brackets') {
+        const arrayUrl = searchParams.getAll(`${key}[]`)
+        const encodedQueryArray = transformParamsToURLSearch({ [key]: arrayUrl }).toString()
+        return decodeURIComponent(encodedQueryArray)
+      }
+
+      if (arraySerialization === 'csv') {
+        const arrayValue = searchParams.getAll(key)
+        const encodedQueryArray = transformParamsToURLSearch({ [key]: arrayValue }).toString()
+        return decodeURIComponent(encodedQueryArray)
+      }
+
+      const arrayValue = searchParams.getAll(key)
+      return transformParamsToURLSearch({ [key]: arrayValue }).toString()
+    }
+
+    return paramsUrl[key] as string
+  }
+
+  const getParamsObj = (urlParams: URLSearchParams): Record<string, string | string[]> => {
+    const paramsObj: Record<string, string | string[]> = {}
+
+    for (const [key, value] of urlParams.entries()) {
+      if (key.endsWith('[]')) {
+        const bareKey = key.replace('[]', '')
+        if (paramsObj[bareKey]) {
+          ;(paramsObj[bareKey] as string[]).push(value)
+        } else {
+          paramsObj[bareKey] = [value]
+        }
+      } else {
+        if (paramsObj[key]) {
+          if (Array.isArray(paramsObj[key])) {
+            ;(paramsObj[key] as string[]).push(value)
           } else {
-            paramsObj[bareKey] = [value];
+            paramsObj[key] = [paramsObj[key] as string, value]
           }
         } else {
-          // If the key already exists, it is a repeated parameter
-          if (paramsObj[key]) {
-            if (Array.isArray(paramsObj[key])) {
-              (paramsObj[key] as string[]).push(value);
-            } else {
-              paramsObj[key] = [paramsObj[key] as string, value];
-            }
-          } else {
-            paramsObj[key] = value;
-          }
+          paramsObj[key] = value
         }
       }
-      return paramsObj;
-     }
-    // Optimization: While the parameters are not updated, the current parameters of the URL are not recalculated
-    const CURRENT_PARAMS_URL: Record<string, unknown> = useMemo(() => {
-
-      return arraySerialization === 'brackets' ? getParamsObj(searchParams) : Object.fromEntries(searchParams.entries())
-    }, [searchParams, arraySerialization])
-
-    /**
-      * Gets the current parameters from the URL and converts them to their original type if desired
-     * @param convert - If true, converts from string to the inferred type (number, boolean, ...)
-     * @returns - Returns the current parameters of the URL
-     */
-    const getParams = ({ convert = true } = {}): MergeParams<M, O> => {
-      // All the paramteres are extracted from the URL and converted into an object
-
-      const params = Object.keys(CURRENT_PARAMS_URL).reduce((acc, key) => {
-        if (Object.prototype.hasOwnProperty.call(TOTAL_PARAMS_PAGE, key)) {
-          const realKey = arraySerialization === 'brackets' ? key.replace('[]', '') : key
-          // @ts-ignore
-          acc[realKey] = convert === true
-            ? convertOriginalType(CURRENT_PARAMS_URL[key] as string, key)
-            :  getStringUrl(key, CURRENT_PARAMS_URL)
-        }
-        return acc
-      }, {})
-  
-      return params as MergeParams<M, O>
     }
-  type keys = keyof MergeParams<M, O>
-  // Note: in this way the return of the getParam function is typed dynamically, thus having autocomplete in the IDE (eg: value.split(','))
-  type TagReturn<T extends boolean> = T extends true ? string[] : string;
-  /**
-    * Gets the value of a parameter from the URL and converts it to its original type if desired
-   * @param key - Key of the parameter
-   * @param options - Options to convert the value to its original type, default is true
-   * @returns - Returns the value of the parameter
-   */
 
-  const getParam = <T extends boolean>(key: keys, options?: { convert: T }): TagReturn<T>  => {
-
-    const keyStr = String(key)
-    // @ts-ignore
-    const value = options?.convert === true ? convertOriginalType(searchParams.get(keyStr), keyStr) : getStringUrl(keyStr,  CURRENT_PARAMS_URL)
-    return value as TagReturn<T> 
+    return paramsObj
   }
-  
-  type OptionalParamsFiltered = Partial<O>
 
-  const calculateOmittedParameters = (newParams: Record<string, unknown | unknown[]>, keepParams: Record<string, boolean>) => {
-    // Calculate the ommited parameters, that is, the parameters that have not been sent in the request
+  // Optimization: While params are not updated, URL params are not recalculated.
+  const CURRENT_PARAMS_URL: Record<string, unknown> = useMemo(() => {
+    return arraySerialization === 'brackets'
+      ? getParamsObj(searchParams)
+      : Object.fromEntries(searchParams.entries())
+  }, [searchParams, arraySerialization])
+
+  /**
+   * Gets current URL params and converts to original types if desired.
+   */
+  const getParams = ({ convert = true } = {}): MergeParams<M, O> => {
+    const params = Object.keys(CURRENT_PARAMS_URL).reduce((acc, key) => {
+      if (Object.prototype.hasOwnProperty.call(TOTAL_PARAMS_PAGE, key)) {
+        const realKey = arraySerialization === 'brackets' ? key.replace('[]', '') : key
+        ;(acc as Record<string, unknown>)[realKey] =
+          convert === true
+            ? convertOriginalType(realKey)
+            : getStringUrl(key, CURRENT_PARAMS_URL)
+      }
+      return acc
+    }, {} as Record<string, unknown>)
+
+    return params as MergeParams<M, O>
+  }
+
+  type ParamReturn<K extends Keys, T extends boolean> = T extends true
+    ? MergeParams<M, O>[K]
+    : string
+
+  /**
+   * Gets one URL parameter and converts it to original type if desired.
+   */
+  const getParam = <K extends Keys, T extends boolean = true>(
+    key: K,
+    options?: { convert: T }
+  ): ParamReturn<K, T> => {
+    const keyStr = String(key)
+    const shouldConvert = options?.convert !== false
+    const value = shouldConvert
+      ? convertOriginalType(keyStr)
+      : getStringUrl(keyStr, CURRENT_PARAMS_URL)
+
+    return value as ParamReturn<K, T>
+  }
+
+  const isUpdateShape = (value: unknown): value is UpdateParamsObject => {
+    if (value == null || typeof value !== 'object') return false
+
+    return (
+      Object.prototype.hasOwnProperty.call(value, 'newParams') ||
+      Object.prototype.hasOwnProperty.call(value, 'keepParams') ||
+      Object.prototype.hasOwnProperty.call(value, 'historyMode')
+    )
+  }
+
+  const normalizeUpdateInput = (input?: UpdateParamsInput) => {
+    const currentParams = getParams({ convert: true })
+
+    if (typeof input === 'function') {
+      const result = input(currentParams)
+      if (isUpdateShape(result)) {
+        return {
+          newParams:
+            typeof result.newParams === 'function'
+              ? result.newParams(currentParams)
+              : (result.newParams ?? ({} as NewParams)),
+          keepParams: result.keepParams ?? ({} as KeepParams),
+          historyMode: result.historyMode
+        }
+      }
+
+      return {
+        newParams: result as NewParams,
+        keepParams: {} as KeepParams,
+        historyMode: undefined
+      }
+    }
+
+    if (!input) {
+      return {
+        newParams: {} as NewParams,
+        keepParams: {} as KeepParams,
+        historyMode: undefined
+      }
+    }
+
+    return {
+      newParams:
+        typeof input.newParams === 'function'
+          ? input.newParams(currentParams)
+          : (input.newParams ?? ({} as NewParams)),
+      keepParams: input.keepParams ?? ({} as KeepParams),
+      historyMode: input.historyMode
+    }
+  }
+
+  const applyResetOnChangeRules = ({
+    currentParams,
+    newParams,
+    keepParams
+  }: {
+    currentParams: Params
+    newParams: NewParams
+    keepParams: KeepParams
+  }) => {
+    const nextNewParams = { ...newParams } as Record<string, unknown>
+    const nextKeepParams = { ...keepParams } as Record<string, boolean | undefined>
+
+    for (const [sourceKey, targetKeys] of Object.entries(resetOnChange)) {
+      if (!targetKeys || targetKeys.length === 0) continue
+      if (!Object.prototype.hasOwnProperty.call(nextNewParams, sourceKey)) continue
+
+      const hasChanged = !valuesAreEqual(
+        nextNewParams[sourceKey],
+        currentParams[sourceKey as keyof Params]
+      )
+
+      if (!hasChanged) continue
+
+      for (const targetKey of targetKeys) {
+        if (Object.prototype.hasOwnProperty.call(forceParams, targetKey)) {
+          continue
+        }
+
+        if (Object.prototype.hasOwnProperty.call(mandatory, targetKey)) {
+          nextNewParams[targetKey] = mandatory[targetKey as keyof typeof mandatory]
+          delete nextKeepParams[targetKey]
+          continue
+        }
+
+        if (Object.prototype.hasOwnProperty.call(defaultParams, targetKey)) {
+          nextNewParams[targetKey] = defaultParams[targetKey as keyof typeof defaultParams]
+          delete nextKeepParams[targetKey]
+          continue
+        }
+
+        delete nextNewParams[targetKey]
+        nextKeepParams[targetKey] = false
+      }
+    }
+
+    return {
+      newParams: nextNewParams as NewParams,
+      keepParams: nextKeepParams as KeepParams
+    }
+  }
+
+  const calculateOmittedParameters = (
+    newParams: Record<string, unknown | unknown[]>,
+    keepParams: Record<string, boolean | undefined>
+  ) => {
     const params = getParams()
-    // hasOw
-    // Note: it will be necessary to omit the parameters that are arrays because the idea is not to replace them but to add or remove some values
-    const newParamsWithoutArray = Object.entries(newParams).filter(([key,]) => !Array.isArray(TOTAL_PARAMS_PAGE[key]))
-    const result = Object.assign({
-      ...params,
-      ...Object.fromEntries(newParamsWithoutArray),
-      ...forceParams // the forced parameters will always be sent and will maintain their value
-    })
-    const paramsFiltered: OptionalParamsFiltered = Object.keys(result).reduce((acc, key) => {
-      // for default no parameters are omitted unless specified in the keepParams object
+
+    // Arrays are handled separately to support toggle/merge behaviors.
+    const newParamsWithoutArray = Object.entries(newParams).filter(
+      ([key]) => !Array.isArray(TOTAL_PARAMS_PAGE[key])
+    )
+
+    const result = Object.assign(
+      {
+        ...params,
+        ...Object.fromEntries(newParamsWithoutArray)
+      },
+      forceParams
+    )
+
+    const paramsFiltered = Object.keys(result).reduce((acc, key) => {
       if (Object.prototype.hasOwnProperty.call(keepParams, key) && keepParams[key] === false) {
         return acc
-      // Note: They array of parameters omitted by values (e.g., ['all', 'default']) are omitted since they are usually a default value that is not desired to be sent
-      } else if (!!result[key] !== false && !omitParamsByValues.includes(result[key])) {
-        // @ts-ignore
-        acc[key] = result[key]
+      }
+
+      const value = result[key]
+      if (
+        value !== undefined &&
+        value !== null &&
+        value !== '' &&
+        !omitParamsByValues.includes(value as 'all' | 'default' | 'unknown' | 'none' | 'void')
+      ) {
+        ;(acc as Record<string, unknown>)[key] = value
       }
 
       return acc
-    }, {})
+    }, {} as Record<string, unknown>)
 
     return {
       ...mandatory,
       ...paramsFiltered
-    } 
+    }
   }
-    // @ts-ignore
-  const sortParameters = (paramsFiltered) => {
-    // sort the parameters according to the structure so that it persists with each change in the URL, eg: localhost:3000/?page=1&page_size=10
-    // Note: this visibly improves the user experience
+
+  const sortParameters = (paramsFiltered: Record<string, unknown>) => {
+    // Sort params according to base structure to keep a stable URL order.
     const orderedParams = PARAM_ORDER.reduce((acc, key) => {
       if (Object.prototype.hasOwnProperty.call(paramsFiltered, key)) {
-          // @ts-ignore
-        acc[key] = paramsFiltered[key]
+        ;(acc as Record<string, unknown>)[key] = paramsFiltered[key]
       }
 
       return acc
-    }, {})
-    return orderedParams
+    }, {} as Record<string, unknown>)
+
+    return orderedParams as MergeParams<M, O>
   }
 
   const mandatoryParameters = () => {
-    // Note: in case there are arrays in the URL, they are converted to their original form ej: tags=['tag1', 'tag2'] otherwise the parameters are extracted without converting to optimize performance
-    const isNecessaryConvert: boolean = ARRAY_KEYS.length > 0 ? true : false
-    const totalParametros: Record<string, unknown>  = getParams({ convert: isNecessaryConvert })
+    // In case arrays exist in URL, convert them to original form; otherwise skip conversion to optimize.
+    const isNecessaryConvert: boolean = ARRAY_KEYS.length > 0
+    const totalParametros: Record<string, unknown> = getParams({
+      convert: isNecessaryConvert
+    })
 
-    const paramsUrlFound: Record<string, boolean> = Object.keys(totalParametros).reduce(
+    const paramsUrlFound: Record<string, unknown> = Object.keys(totalParametros).reduce(
       (acc, key) => {
         if (Object.prototype.hasOwnProperty.call(mandatory, key)) {
-          // @ts-ignore
-          acc[key] = totalParametros[key]
+          ;(acc as Record<string, unknown>)[key] = totalParametros[key]
         }
         return acc
       },
@@ -435,92 +669,304 @@ export const useMagicSearchParams = <
 
     return paramsUrlFound
   }
-  /**
-   clears the parameters of the URL, keeping the mandatory parameters
-   * @param keepMandatoryParams - If true, the mandatory parameters are kept in the URL
-   */
 
-  const clearParams = ({ keepMandatoryParams = true } = {}): void => {
-    // for default, the mandatory parameters are not cleared since the current pagination would be lost
-    const paramsTransformed = transformParamsToURLSearch(
-      {
-        ...mandatory,
-     
-         ...(keepMandatoryParams && {
-          ...mandatoryParameters()
-        }),
-        ...forceParams 
-      }
-    )
-    setSearchParams(paramsTransformed) 
+  /**
+   * Clears URL params, keeping mandatory params by default.
+   */
+  const clearParams = ({
+    keepMandatoryParams = true,
+    historyMode: historyModeOverride
+  }: {
+    keepMandatoryParams?: boolean
+    historyMode?: HistoryMode
+  } = {}): void => {
+    const paramsTransformed = transformParamsToURLSearch({
+      ...mandatory,
+      ...(keepMandatoryParams && {
+        ...mandatoryParameters()
+      }),
+      ...forceParams
+    })
+
+    const finalParams = appendUnknownEntries(paramsTransformed)
+    setSearchParamsWithHistory(finalParams, historyModeOverride)
   }
 
-  // transforms the keys to boolean to know which parameters to keep
-  type KeepParamsTransformedValuesBoolean = Partial<Record<keyof typeof TOTAL_PARAMS_PAGE, boolean>>
-  type NewParams = Partial<typeof TOTAL_PARAMS_PAGE> 
-  type KeepParams = KeepParamsTransformedValuesBoolean
   /**
-   Merges the new parameters with the current ones, omits the parameters that are not sent and sorts them according to the structure
-   * @param newParams - New parameters to be sent in the URL
-   * @param keepParams - Parameters to keep in the URL, default is true
+   * Merges new params with current ones, applies omit/reset rules, and writes sorted URL state.
    */
-  const updateParams = ({ newParams = {} as NewParams, keepParams = {} as KeepParams } = {}) => {
+  const updateParams = (input?: UpdateParamsInput) => {
+    const normalizedInput = normalizeUpdateInput(input)
+    const currentParams = getParams({ convert: true })
+
+    const updatesWithResets = applyResetOnChangeRules({
+      currentParams,
+      newParams: normalizedInput.newParams,
+      keepParams: normalizedInput.keepParams
+    })
+
+    const newParams = updatesWithResets.newParams
+    const keepParams = updatesWithResets.keepParams
 
     if (
       Object.keys(newParams).length === 0 &&
       Object.keys(keepParams).length === 0
     ) {
-      clearParams()
+      clearParams({ historyMode: normalizedInput.historyMode })
       return
     }
-    // @ts-ignore
+
     const finallyParamters = calculateOmittedParameters(newParams, keepParams)
-
     const convertedArrayValues = appendArrayValues(finallyParamters, newParams)
-
     const paramsSorted = sortParameters(convertedArrayValues)
 
-    setSearchParams(transformParamsToURLSearch(paramsSorted))
+    const transformedParams = transformParamsToURLSearch(paramsSorted)
+    const finalParams = appendUnknownEntries(transformedParams)
 
+    setSearchParamsWithHistory(finalParams, normalizedInput.historyMode)
   }
 
-  /**
-   * @param paramName - Name of the parameter to subscribe to
-   * @param callbacks - Callbacks to be executed when the parameter changes
-   * @returns - Returns the function to unsubscribe
-   */
-    const onChange = useCallback( (paramName: keys, callbacks: Array<() => void>) => {
-      const paramNameStr = String(paramName)
-      // replace the previous callbacks with the new ones so as not to accumulate callbacks
-      subscriptionsRef.current[paramNameStr] = callbacks;
-    }, [])
-  
-    // each time searchParams changes, we notify the subscribers
-    useEffect(() => {
+  const pageStrategy = paginationStrategy?.mode === 'page' ? paginationStrategy : undefined
+  const offsetStrategy = paginationStrategy?.mode === 'offset' ? paginationStrategy : undefined
+  const cursorStrategy = paginationStrategy?.mode === 'cursor' ? paginationStrategy : undefined
 
-      for (const [key, value] of Object.entries(subscriptionsRef.current)) {
+  const pagination = {
+    mode: paginationStrategy?.mode ?? 'page',
+    next: (cursor?: string) => {
+      const strategyMode = paginationStrategy?.mode ?? 'page'
 
-        const newValue = CURRENT_PARAMS_URL[key] ?? null 
-        const oldValue = previousParamsRef.current[key] ?? null
-        if (newValue !== oldValue) {
-          
-          for (const callback of value) {
-            callback()
-
-          }
+      if (strategyMode === 'cursor') {
+        const cursorKey = cursorStrategy?.cursorKey ?? ('cursor' as Keys)
+        if (typeof cursor === 'string') {
+          updateParams({ newParams: { [cursorKey]: cursor } as NewParams })
         }
-        // once the callback is executed, the previous value is updated to ensure that the next time the value changes, the callback is executed
-        previousParamsRef.current[key] = newValue
+        return
       }
 
-    }, [CURRENT_PARAMS_URL])
+      if (strategyMode === 'offset') {
+        const offsetKey = offsetStrategy?.offsetKey ?? ('offset' as Keys)
+        const limitKey = offsetStrategy?.limitKey ?? ('limit' as Keys)
+
+        const currentOffset = Number(
+          getParam(offsetKey, { convert: true } as { convert: true }) ?? 0
+        )
+        const currentLimit = Number(
+          getParam(limitKey, { convert: true } as { convert: true }) ??
+            getDefaultValueForKey(String(limitKey), 10)
+        )
+
+        const safeOffset = Number.isFinite(currentOffset) ? currentOffset : 0
+        const safeLimit = Number.isFinite(currentLimit) && currentLimit > 0 ? currentLimit : 10
+
+        updateParams({
+          newParams: {
+            [offsetKey]: safeOffset + safeLimit
+          } as NewParams
+        })
+        return
+      }
+
+      const pageKey =
+        pageStrategy
+          ? pageStrategy.pageKey ?? ('page' as Keys)
+          : ('page' as Keys)
+
+      const currentPage = Number(
+        getParam(pageKey, { convert: true } as { convert: true }) ??
+          getDefaultValueForKey(String(pageKey), 1)
+      )
+
+      const safeCurrentPage = Number.isFinite(currentPage) && currentPage > 0 ? currentPage : 1
+
+      updateParams({
+        newParams: {
+          [pageKey]: safeCurrentPage + 1
+        } as NewParams
+      })
+    },
+    prev: () => {
+      const strategyMode = paginationStrategy?.mode ?? 'page'
+
+      if (strategyMode === 'cursor') {
+        const cursorKey = cursorStrategy?.cursorKey ?? ('cursor' as Keys)
+        updateParams({ keepParams: { [cursorKey]: false } as KeepParams })
+        return
+      }
+
+      if (strategyMode === 'offset') {
+        const offsetKey = offsetStrategy?.offsetKey ?? ('offset' as Keys)
+        const limitKey = offsetStrategy?.limitKey ?? ('limit' as Keys)
+
+        const currentOffset = Number(
+          getParam(offsetKey, { convert: true } as { convert: true }) ?? 0
+        )
+        const currentLimit = Number(
+          getParam(limitKey, { convert: true } as { convert: true }) ??
+            getDefaultValueForKey(String(limitKey), 10)
+        )
+
+        const safeOffset = Number.isFinite(currentOffset) ? currentOffset : 0
+        const safeLimit = Number.isFinite(currentLimit) && currentLimit > 0 ? currentLimit : 10
+
+        updateParams({
+          newParams: {
+            [offsetKey]: Math.max(0, safeOffset - safeLimit)
+          } as NewParams
+        })
+        return
+      }
+
+      const pageKey =
+        pageStrategy
+          ? pageStrategy.pageKey ?? ('page' as Keys)
+          : ('page' as Keys)
+
+      const currentPage = Number(
+        getParam(pageKey, { convert: true } as { convert: true }) ??
+          getDefaultValueForKey(String(pageKey), 1)
+      )
+
+      const safeCurrentPage = Number.isFinite(currentPage) && currentPage > 0 ? currentPage : 1
+
+      updateParams({
+        newParams: {
+          [pageKey]: Math.max(1, safeCurrentPage - 1)
+        } as NewParams
+      })
+    },
+    reset: () => {
+      const strategyMode = paginationStrategy?.mode ?? 'page'
+
+      if (strategyMode === 'cursor') {
+        const cursorKey = cursorStrategy?.cursorKey ?? ('cursor' as Keys)
+        updateParams({ keepParams: { [cursorKey]: false } as KeepParams })
+        return
+      }
+
+      if (strategyMode === 'offset') {
+        const offsetKey = offsetStrategy?.offsetKey ?? ('offset' as Keys)
+        const defaultOffset = Number(getDefaultValueForKey(String(offsetKey), 0))
+
+        updateParams({
+          newParams: {
+            [offsetKey]: Number.isFinite(defaultOffset) ? defaultOffset : 0
+          } as NewParams
+        })
+        return
+      }
+
+      const pageKey =
+        pageStrategy
+          ? pageStrategy.pageKey ?? ('page' as Keys)
+          : ('page' as Keys)
+
+      const defaultPage = Number(getDefaultValueForKey(String(pageKey), 1))
+
+      updateParams({
+        newParams: {
+          [pageKey]: Number.isFinite(defaultPage) && defaultPage > 0 ? defaultPage : 1
+        } as NewParams
+      })
+    },
+    setCursor: (cursor: string | null | undefined) => {
+      const strategyMode = paginationStrategy?.mode ?? 'page'
+      const cursorKey =
+        strategyMode === 'cursor'
+          ? cursorStrategy?.cursorKey ?? ('cursor' as Keys)
+          : ('cursor' as Keys)
+
+      if (cursor == null || cursor === '') {
+        updateParams({ keepParams: { [cursorKey]: false } as KeepParams })
+        return
+      }
+
+      updateParams({
+        newParams: {
+          [cursorKey]: cursor
+        } as NewParams
+      })
+    }
+  }
+
+  const onChange = useCallback(
+    (paramName: Keys, callbacks: Array<OnChangeCallback<MergeParams<M, O>>>) => {
+      const paramNameStr = String(paramName)
+      subscriptionsRef.current[paramNameStr] = callbacks
+
+      return () => {
+        delete subscriptionsRef.current[paramNameStr]
+        delete previousParamsRef.current[paramNameStr]
+      }
+    },
+    []
+  )
+
+  // Every time searchParams changes, notify subscribers.
+  useEffect(() => {
+    for (const [key, callbacks] of Object.entries(subscriptionsRef.current)) {
+      const newValue = hasKnownKey(key) ? convertOriginalType(key) : searchParams.get(key)
+      const oldValue = previousParamsRef.current[key] ?? null
+
+      if (!valuesAreEqual(newValue, oldValue)) {
+        for (const callback of callbacks) {
+          callback({
+            key: key as keyof MergeParams<M, O>,
+            previousValue: oldValue,
+            currentValue: newValue
+          })
+        }
+      }
+
+      previousParamsRef.current[key] = newValue
+    }
+  }, [CURRENT_PARAMS_URL, hasKnownKey, searchParams])
+
+  useEffect(() => {
+    const keysDefaultParams: string[] = Object.keys(defaultParams)
+    const keysForceParams: string[] = Object.keys(forceParams)
+    if (keysDefaultParams.length === 0 && keysForceParams.length === 0) return
+
+    function handleStartingParams() {
+      const defaultParamsString = transformParamsToURLSearch(defaultParams).toString()
+      const paramsUrl = getParams()
+      const paramsUrlString = transformParamsToURLSearch(paramsUrl).toString()
+      const isForcedParams: boolean = hasForcedParamsValues({
+        paramsForced: forceParams,
+        compareParams: paramsUrl
+      })
+
+      if (!isForcedParams) {
+        updateParams({
+          newParams: {
+            ...defaultParams,
+            ...forceParams
+          }
+        })
+        return
+      }
+
+      const isIncludesForcedParams = hasForcedParamsValues({
+        paramsForced: forceParams,
+        compareParams: defaultParams as Record<string, unknown>
+      })
+
+      if (keysDefaultParams.length > 0 && isIncludesForcedParams) {
+        if (defaultParamsString === paramsUrlString) return
+        updateParams({ newParams: defaultParams })
+      }
+    }
+
+    handleStartingParams()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return {
     searchParams,
     updateParams,
     clearParams,
     getParams,
     getParam,
-    onChange
+    onChange,
+    pagination
   }
 }
-

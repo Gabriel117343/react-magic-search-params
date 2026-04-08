@@ -6,14 +6,14 @@ interface CurrentParametersProps {
   only_is_active: boolean;
   tagsWithoutConvert: string;
   order: string;
-  search: string;
+  q: string;
+  cursor: string;
   onConvertStringBoolean?: (value: string) => boolean;
 }
 
 export const CurrentParameters = (props: CurrentParametersProps) => {
-  const { only_is_active, order, page, search, tags, tagsWithoutConvert } = props;
-  
-  console.log("type only_is_active", typeof only_is_active);
+  const { only_is_active, order, page, q, cursor, tags, tagsWithoutConvert } = props;
+
   return (
     <div className="mb-6">
     <h3 className="text-lg font-semibold mb-3">Current Parameters:</h3>
@@ -43,7 +43,10 @@ export const CurrentParameters = (props: CurrentParametersProps) => {
         <strong>Order:</strong> {order ?? "None"}
       </p>
       <p>
-        <strong>Search:</strong> {search ?? "None"}
+        <strong>q:</strong> {q ?? "None"}
+      </p>
+      <p>
+        <strong>Opaque cursor:</strong> {cursor ?? "None"}
       </p>
     </div>
   </div>

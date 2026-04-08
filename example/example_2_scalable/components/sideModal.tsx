@@ -4,25 +4,34 @@ import { paramsUserConfig } from '../constants/userParamsPage'
 
 export const SideModal = () => {
   const [isOpen, setIsOpen] = useState(true)
-  const [lastParamChanged, setLastParamChanged] = useState('')
+  const [lastParamChanged, setLastParamChanged] = useState('None')
+  const [lastTransition, setLastTransition] = useState('')
   // When using one unique hook for all the parameters, you can use the same hook for all the parameters
-  const { onChange, getParam } = useMagicSearchParams(paramsUserConfig)
-  const currentTags = getParam('tags', { convert: true })
-  console.log('currentTags', currentTags)
+  const { onChange } = useMagicSearchParams(paramsUserConfig)
+
   useEffect(() => {
-    onChange('tags', [
-       () => setLastParamChanged('tags')
-    ])
-    onChange('only_is_active', [
-      () => setLastParamChanged('only_is_active')])
-    onChange('order', [
-      () => setLastParamChanged('order')])
-    onChange('search', [
-      () => setLastParamChanged('search')
-    ])
-    onChange('page', [
-      () => setLastParamChanged('page')
-    ])
+    const makeHandler = (keyName: string) => [
+      ({ previousValue, currentValue }) => {
+        setLastParamChanged(keyName)
+        setLastTransition(`${String(previousValue)} -> ${String(currentValue)}`)
+      }
+    ]
+
+    const unsubTags = onChange('tags', makeHandler('tags'))
+    const unsubOnlyActive = onChange('only_is_active', makeHandler('only_is_active'))
+    const unsubOrder = onChange('order', makeHandler('order'))
+    const unsubQ = onChange('q', makeHandler('q'))
+    const unsubCursor = onChange('cursor', makeHandler('cursor'))
+    const unsubPage = onChange('page', makeHandler('page'))
+
+    return () => {
+      unsubTags()
+      unsubOnlyActive()
+      unsubOrder()
+      unsubQ()
+      unsubCursor()
+      unsubPage()
+    }
 
   }, [onChange])
 
@@ -31,11 +40,14 @@ export const SideModal = () => {
       <div className="p-4">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-semibold"></h2>
-          <button className="text-2xl" onClick={() => setIsOpen(prev => !prev)}>X</button>
+          <button type='button' className="text-2xl" onClick={() => setIsOpen(prev => !prev)}>X</button>
         </div>
   
         <p className="text-lg mt-4 text-gray-700 flex flex-col">Last Parameter Changed:
-          <strong className='font-semibold'>{lastParamChanged || 'None'}</strong>
+          <strong className='font-semibold'>{lastParamChanged}</strong>
+        </p>
+        <p className='text-sm text-gray-600 mt-2'>
+          Transition: {lastTransition || 'No changes yet'}
         </p>
       </div>
     </dialog>

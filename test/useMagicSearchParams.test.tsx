@@ -429,3 +429,125 @@ describe("Test de combinación de arrays en updateParams", () => {
     ]);
   });
 });
+
+describe("Phase 1 advanced features", () => {
+  it("Debe permitir desuscribirse de onChange", () => {
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          ...paramsUsers,
+          defaultParams: paramsUsers.mandatory,
+        }),
+      { wrapper: Wrapper }
+    );
+
+    const callback = vi.fn();
+    let unsubscribe: undefined | (() => void);
+
+    act(() => {
+      unsubscribe = result.current.onChange("search", [callback]);
+    });
+
+    act(() => {
+      result.current.updateParams({ newParams: { search: "first" } });
+    });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      unsubscribe?.();
+    });
+
+    act(() => {
+      result.current.updateParams({ newParams: { search: "second" } });
+    });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it("Debe exponer previousValue y currentValue en el payload de onChange", () => {
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          ...paramsUsers,
+          defaultParams: paramsUsers.mandatory,
+        }),
+      { wrapper: Wrapper }
+    );
+
+    const callback = vi.fn();
+
+    act(() => {
+      result.current.onChange("search", [callback]);
+    });
+
+    act(() => {
+      result.current.updateParams({ newParams: { search: "john" } });
+    });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "search",
+        previousValue: null,
+        currentValue: "john",
+      })
+    );
+  });
+
+  it("Debe aplicar codecs.parse al leer parámetros convertidos", () => {
+    const initialEntries = ["/?page=3&q=%20John%20"];
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1 },
+          optional: { q: "" },
+          codecs: {
+            page: {
+              parse: (value) => {
+                const raw = Array.isArray(value) ? value[0] : value;
+                return Number(raw ?? 0) * 10;
+              },
+            },
+            q: {
+              parse: (value) => {
+                const raw = Array.isArray(value) ? value[0] : value;
+                return String(raw ?? "").trim();
+              },
+            },
+          },
+        }),
+      {
+        wrapper: ({ children }) => (
+          <Wrapper initialEntries={initialEntries}>{children}</Wrapper>
+        ),
+      }
+    );
+
+    const params = result.current.getParams({ convert: true });
+    expect(params.page).toBe(30);
+    expect(params.q).toBe("John");
+  });
+
+  it("Debe aplicar codecs.serialize al actualizar parámetros", () => {
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1 },
+          optional: { q: "" },
+          codecs: {
+            q: {
+              serialize: (value) => String(value ?? "").trim().toLowerCase(),
+            },
+          },
+        }),
+      { wrapper: Wrapper }
+    );
+
+    act(() => {
+      result.current.updateParams({ newParams: { q: "  HeLLo  " } });
+    });
+
+    expect(result.current.searchParams.get("q")).toBe("hello");
+  });
+});
