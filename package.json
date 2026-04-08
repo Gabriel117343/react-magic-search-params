@@ -3,7 +3,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Gabriel117343/react-magic-search-params"
-   },
+  },
   "homepage": "https://react-magic-search-params.netlify.app",
   "keywords": [
     "react",
@@ -17,7 +17,7 @@
     "use-query-parameters",
     "query-parameters"
   ],
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": false,
   "license": "MIT",
   "main": "dist/index.cjs",
@@ -88,7 +88,6 @@
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   },
-
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
