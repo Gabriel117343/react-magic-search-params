@@ -5,6 +5,8 @@
 
 # react-magic-search-params
 
+![react-magic-search-params hero](https://raw.githubusercontent.com/Gabriel117343/react-magic-search-params/main/public/hero.png)
+
 Typed query parameter management for React Router.
 
 ## Installation
