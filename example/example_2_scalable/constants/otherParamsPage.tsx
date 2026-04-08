@@ -1,4 +1,4 @@
-import { type UseMagicSearchParamsOptions } from 'react-magic-search-params'
+import { type UseMagicSearchParamsOptions } from '../../../src'
 
 export const paramsProducts = {
 	mandatory: {

@@ -1,5 +1,5 @@
 import React from 'react'
-import { useMagicSearchParams } from 'react-magic-search-params'
+import { useMagicSearchParams } from '../../../src'
 import { paramsProductsConfig } from '../constants/otherParamsPage'
 
 export const OffsetContainer = () => {

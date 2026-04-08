@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useMagicSearchParams } from 'react-magic-search-params'
+import { useMagicSearchParams } from '../../../src'
 import { paramsUserConfig } from '../constants/userParamsPage'
 
 export const SideModal = () => {
@@ -11,7 +11,7 @@ export const SideModal = () => {
 
   useEffect(() => {
     const makeHandler = (keyName: string) => [
-      ({ previousValue, currentValue }) => {
+      ({ previousValue, currentValue }: { previousValue: unknown; currentValue: unknown }) => {
         setLastParamChanged(keyName)
         setLastTransition(`${String(previousValue)} -> ${String(currentValue)}`)
       }

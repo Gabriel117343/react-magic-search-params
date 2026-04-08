@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { useMagicSearchParams } from 'react-magic-search-params';
+import { useMagicSearchParams } from '../../src';
 import { paramsUsers, type TagsUserProps } from './constants/defaultParamsPage';
 
 export default function App() {
@@ -101,7 +101,13 @@ export default function App() {
   };
 
   const handleToggleTag = (tag: TagsUserProps) => {
-    updateParams({ newParams: { tags: tag } });
+    updateParams((prev) => {
+      const currentTags = Array.isArray(prev.tags) ? [...prev.tags] : [];
+      if (currentTags.includes(tag)) {
+        return { newParams: { tags: currentTags.filter((item) => item !== tag) } };
+      }
+      return { newParams: { tags: [...currentTags, tag] } };
+    });
   };
 
   return (

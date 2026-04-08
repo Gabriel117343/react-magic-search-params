@@ -7,7 +7,7 @@ import {
 import { DarkSvg } from './ui/svg/DarkSvg'
 import { LightSvg } from './ui/svg/LightSvg'
 import { useHandleTheme } from '../hooks/useHandleTheme'
-import { useMagicSearchParams } from 'react-magic-search-params'
+import { useMagicSearchParams } from '../../../src'
 import { CurrentParameters } from './currentParameters'
 
 export const UserContainer = () => {

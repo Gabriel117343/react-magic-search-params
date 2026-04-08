@@ -1,4 +1,4 @@
-import { type UseMagicSearchParamsOptions } from 'react-magic-search-params'
+import { type UseMagicSearchParamsOptions } from '../../../src'
 
 // Even you can import OrserUser from other file constants to transform the type in a more global way
 // import { OrderUser } from './OrderUser';
