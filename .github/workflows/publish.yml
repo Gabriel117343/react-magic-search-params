@@ -30,6 +30,16 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: Upgrade npm for trusted publishing
+        run: |
+          npm i -g npm@11
+          npm --version
+
+      - name: Verify OIDC context
+        run: |
+          test -n "$ACTIONS_ID_TOKEN_REQUEST_URL"
+          test -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
