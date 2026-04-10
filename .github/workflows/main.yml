@@ -15,10 +15,19 @@ jobs:
   build:
     name: Build, lint and test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
-        node: [18, 20, 22, 24, 25]
+        include:
+          - node: 20
+            experimental: false
+          - node: 22
+            experimental: false
+          - node: 24
+            experimental: false
+          - node: 25
+            experimental: true
 
     steps:
       - name: Checkout repository
