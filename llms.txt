@@ -1,0 +1,33 @@
+react-magic-search-params
+
+Summary
+Type-safe React hook for query/search param state with React Router.
+Provides a typed params contract, defaults and force rules, URL cleanup, advanced pagination behavior, and custom parse/serialize codecs.
+
+Use Cases
+- Filters, search, sorting, tags, and pagination synced with URL.
+- Stable and predictable query params across screens.
+- Safer migration from direct useSearchParams usage.
+
+Feature Selection Guide
+- mandatory + defaultParams: always-present required keys.
+- forceParams: protect fixed query values.
+- omitParamsByValues: remove non-informative URL values.
+- arraySerialization: csv, repeat, or brackets encoding for array params.
+- resetOnChange: declarative dependent reset behavior.
+- paginationStrategy: page, offset, or cursor.
+- historyMode: push or replace defaults for URL updates.
+- unknownParamsPolicy: drop or preserve undeclared params.
+- codecs: custom parse and serialize.
+- onChange: param change side effects and subscriptions.
+
+Repository Docs
+- README.md: full API, examples, and behavior details.
+- README_NPM.md: concise npm-focused usage.
+- .github/copilot-instructions.md: assistant-oriented generation guidance.
+- AGENTS.md: cross-agent project guidance.
+
+Commands
+- pnpm run typecheck
+- pnpm test
+- pnpm run build

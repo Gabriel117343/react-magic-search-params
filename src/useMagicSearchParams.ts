@@ -56,6 +56,9 @@ export type UnknownParamsPolicy = 'drop' | 'preserve'
 
 export type HistoryMode = 'push' | 'replace'
 
+export type BuiltInOmitParamValue = 'all' | 'default' | 'unknown' | 'none' | 'void'
+export type OmitParamValue = BuiltInOmitParamValue | (string & {})
+
 export type OnChangeEvent<TParams extends Record<string, unknown>> = {
   key: keyof TParams
   previousValue: unknown
@@ -78,7 +81,7 @@ export interface UseMagicSearchParamsOptions<
   defaultParams?: Partial<MergeParams<M, O>>
   forceParams?: Partial<MergeParams<M, O>>
   arraySerialization?: 'csv' | 'repeat' | 'brackets'
-  omitParamsByValues?: Array<'all' | 'default' | 'unknown' | 'none' | 'void'>
+  omitParamsByValues?: Array<OmitParamValue>
   codecs?: ParamCodecs<MergeParams<M, O>>
   historyMode?: HistoryMode
   resetOnChange?: ResetOnChangeRules<MergeParams<M, O>>
@@ -103,7 +106,7 @@ export const useMagicSearchParams = <
   defaultParams = {} as Partial<MergeParams<M, O>>,
   arraySerialization = 'csv',
   forceParams = {} as Partial<MergeParams<M, O>>,
-  omitParamsByValues = [] as Array<'all' | 'default' | 'unknown' | 'none' | 'void'>,
+  omitParamsByValues = [] as Array<OmitParamValue>,
   codecs = {} as ParamCodecs<MergeParams<M, O>>,
   historyMode = 'push',
   resetOnChange = {} as ResetOnChangeRules<MergeParams<M, O>>,
@@ -619,11 +622,14 @@ export const useMagicSearchParams = <
       }
 
       const value = result[key]
+      const shouldOmitByCustomValue =
+        typeof value === 'string' && omitParamsByValues.includes(value)
+
       if (
         value !== undefined &&
         value !== null &&
         value !== '' &&
-        !omitParamsByValues.includes(value as 'all' | 'default' | 'unknown' | 'none' | 'void')
+        !shouldOmitByCustomValue
       ) {
         ;(acc as Record<string, unknown>)[key] = value
       }

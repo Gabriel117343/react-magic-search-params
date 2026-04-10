@@ -1,23 +1,30 @@
 {
-  "description": "#️⃣ A React Hook for advanced, typed management of URL search parameters, providing built-in TypeScript autocomplete.",
+  "description": "Type-safe React hook to manage URL query/search params with React Router useSearchParams.",
   "repository": {
     "type": "git",
     "url": "https://github.com/Gabriel117343/react-magic-search-params"
   },
   "homepage": "https://react-magic-search-params.netlify.app",
+  "bugs": {
+    "url": "https://github.com/Gabriel117343/react-magic-search-params/issues"
+  },
   "keywords": [
     "react",
-    "hook",
-    "url-parameters",
+    "react-hook",
+    "react-router",
+    "react-router-dom",
+    "useSearchParams",
     "search-params",
+    "query-params",
+    "url-search-params",
+    "url-state",
     "typescript",
-    "autocomplete",
-    "use-url-search-params",
-    "use-search-params",
-    "use-query-parameters",
-    "query-parameters"
+    "type-safe",
+    "filters",
+    "pagination",
+    "sorting"
   ],
-  "version": "2.0.1",
+  "version": "2.0.2",
   "private": false,
   "license": "MIT",
   "main": "dist/index.cjs",
@@ -31,6 +38,7 @@
   "engines": {
     "node": ">=18"
   },
+  "packageManager": "pnpm@10.7.1",
   "scripts": {
     "start": "tsup --watch",
     "dev": "tsup --watch",

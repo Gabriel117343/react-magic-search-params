@@ -7,4 +7,6 @@ export type {
 	ResetOnChangeRules,
 	UnknownParamsPolicy,
 	HistoryMode,
+	BuiltInOmitParamValue,
+	OmitParamValue,
 } from './useMagicSearchParams';

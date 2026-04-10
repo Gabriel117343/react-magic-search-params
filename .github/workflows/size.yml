@@ -1,12 +1,33 @@
-name: size
-on: [pull_request]
+name: Size
+
+on:
+  pull_request:
+  workflow_dispatch:
+
 jobs:
   size:
     runs-on: ubuntu-latest
-    env:
-      CI_JOB_NUMBER: 1
+
     steps:
-      - uses: actions/checkout@v1
-      - uses: andresz1/size-limit-action@v1
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.7.1 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Check bundle size
+        run: pnpm run size
