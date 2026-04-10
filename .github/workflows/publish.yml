@@ -41,7 +41,7 @@ jobs:
           fi
           TOKEN=$(printf '%s' "$NPM_TOKEN" | tr -d '\r\n')
           CONFIG_PATH="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
-          printf "//registry.npmjs.org/:_authToken=%s\nalways-auth=true\n" "$TOKEN" > "$CONFIG_PATH"
+          printf "registry=https://registry.npmjs.org/\n//registry.npmjs.org/:_authToken=%s\n//npmjs.org/:_authToken=%s\n" "$TOKEN" "$TOKEN" > "$CONFIG_PATH"
           npm whoami
 
       - name: Install dependencies
@@ -53,5 +53,19 @@ jobs:
       - name: Build package
         run: pnpm run build
 
+      - name: Prepare npm README (temporary)
+        run: |
+          cp README.md .README_GITHUB.md
+          cp README_NPM.md README.md
+
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance --ignore-scripts --registry=https://registry.npmjs.org/
+
+      - name: Restore GitHub README
+        if: always()
+        run: |
+          if [ -f .README_GITHUB.md ]; then
+            mv .README_GITHUB.md README.md
+          fi
