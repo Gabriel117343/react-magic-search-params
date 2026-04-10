@@ -28,12 +28,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          registry-url: 'https://registry.npmjs.org'
           cache: pnpm
 
-      - name: Verify OIDC context
+      - name: Configure npm auth
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          test -n "$ACTIONS_ID_TOKEN_REQUEST_URL"
-          test -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::error::NPM_TOKEN is missing. Add it in GitHub repository secrets."
+            exit 1
+          fi
+          TOKEN=$(printf '%s' "$NPM_TOKEN" | tr -d '\r\n')
+          CONFIG_PATH="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          printf "//registry.npmjs.org/:_authToken=%s\nalways-auth=true\n" "$TOKEN" > "$CONFIG_PATH"
+          npm whoami
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
