@@ -7,7 +7,6 @@
 
 ![react-magic-search-params hero](https://raw.githubusercontent.com/Gabriel117343/react-magic-search-params/main/public/hero.png)
 
-
 Advanced, typed, and centralized query params management for React Router.
 
 ## Installation
@@ -43,6 +42,9 @@ npm install react-magic-search-params
 11. [Conclusion](#conclusion)
 
 ---
+
+![URL state comic overview](https://raw.githubusercontent.com/Gabriel117343/react-magic-search-params/main/public/comic-url-state.png)
+
 
 ## General Introduction
 

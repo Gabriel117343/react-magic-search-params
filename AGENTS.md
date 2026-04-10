@@ -36,3 +36,21 @@ Validation Commands
 - pnpm run typecheck
 - pnpm test
 - pnpm run build
+
+Commit Conventions (Conventional Commits)
+- Format: `type(scope): short summary`
+- Common types:
+	- `feat(scope)`: new functionality
+	- `fix(scope)`: bug fix
+	- `docs(scope)`: documentation-only changes
+	- `chore(scope)`: maintenance/config/dependency tasks
+	- `refactor(scope)`: internal refactor without behavior change
+	- `test(scope)`: test additions/changes
+	- `ci(scope)`: CI/workflow changes
+	- `build(scope)`: build/packaging changes
+	- `perf(scope)`: performance improvements
+
+Repository Guidance for Commits
+- Prefer small, focused commits by concern (core, docs, ci, build).
+- If a release includes user-visible API improvements, prefer `feat(core)`.
+- If only tooling/workflows changed, prefer `ci(...)` or `chore(...)`.
