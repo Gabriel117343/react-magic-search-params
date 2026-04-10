@@ -2,7 +2,7 @@
   "description": "Type-safe React hook to manage URL query/search params with React Router useSearchParams.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Gabriel117343/react-magic-search-params"
+    "url": "git+https://github.com/Gabriel117343/react-magic-search-params.git"
   },
   "homepage": "https://react-magic-search-params.netlify.app",
   "bugs": {
