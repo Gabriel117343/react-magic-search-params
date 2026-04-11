@@ -24,7 +24,7 @@
     "pagination",
     "sorting"
   ],
-  "version": "2.2.2",
+  "version": "2.2.3",
   "private": false,
   "license": "MIT",
   "main": "dist/index.cjs",
@@ -45,12 +45,14 @@
     "typecheck": "tsc --noEmit",
     "build": "tsup",
     "test": "vitest run --environment jsdom",
+    "test:dist": "vitest run --environment jsdom test/useMagicSearchParams.dist.test.tsx",
     "test:watch": "vitest --environment jsdom",
     "lint": "tsc --noEmit",
     "prepare": "tsup",
+    "prepublishOnly": "pnpm run typecheck && pnpm test && pnpm run build && pnpm run test:dist",
     "size": "size-limit",
     "analyze": "size-limit --why",
-    "prepack": "node -e \"const fs=require('fs');fs.copyFileSync('README.md','.README.repo.md');fs.copyFileSync('README_NPM.md','README.md');\"",
+    "prepack": "pnpm run build && node -e \"const fs=require('fs');fs.copyFileSync('README.md','.README.repo.md');fs.copyFileSync('README_NPM.md','README.md');\"",
     "postpack": "node -e \"const fs=require('fs');if(fs.existsSync('.README.repo.md')){fs.copyFileSync('.README.repo.md','README.md');fs.unlinkSync('.README.repo.md');}\""
   },
   "peerDependencies": {

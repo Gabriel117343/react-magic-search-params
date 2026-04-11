@@ -434,6 +434,39 @@ export const useMagicSearchParams = <
     return rawValue ?? ''
   }
 
+  const enforceCoercedType = (key: string, value: unknown) => {
+    const coerceType = coerceParams[key as ParamKey<MergeParams<M, O>>]
+    if (!coerceType) return value
+
+    if (coerceType === 'boolean') {
+      if (typeof value === 'boolean') return value
+      return String(value ?? '') === 'true'
+    }
+
+    if (coerceType === 'number') {
+      if (typeof value === 'number' && Number.isFinite(value)) return value
+      const parsed = Number.parseInt(String(value ?? ''), 10)
+      if (Number.isNaN(parsed)) {
+        const defaultNumber = getDefaultValueForKey(key, 0)
+        return typeof defaultNumber === 'number' ? defaultNumber : 0
+      }
+      return parsed
+    }
+
+    if (coerceType === 'array') {
+      if (Array.isArray(value)) return value
+      if (value == null || value === '') return []
+      return [String(value)]
+    }
+
+    if (coerceType === 'string') {
+      if (Array.isArray(value)) return value[0] ?? ''
+      return value == null ? '' : String(value)
+    }
+
+    return value
+  }
+
   const getStringUrl = (key: string, paramsUrl: Record<string, unknown>) => {
     const isKeyArray = Array.isArray(TOTAL_PARAMS_PAGE[key])
     if (isKeyArray) {
@@ -497,10 +530,12 @@ export const useMagicSearchParams = <
     const params = Object.keys(CURRENT_PARAMS_URL).reduce((acc, key) => {
       if (Object.prototype.hasOwnProperty.call(TOTAL_PARAMS_PAGE, key)) {
         const realKey = arraySerialization === 'brackets' ? key.replace('[]', '') : key
-        ;(acc as Record<string, unknown>)[realKey] =
-          convert === true
-            ? convertOriginalType(realKey)
-            : getStringUrl(key, CURRENT_PARAMS_URL)
+        if (convert === true) {
+          const convertedValue = convertOriginalType(realKey)
+          ;(acc as Record<string, unknown>)[realKey] = enforceCoercedType(realKey, convertedValue)
+        } else {
+          ;(acc as Record<string, unknown>)[realKey] = getStringUrl(key, CURRENT_PARAMS_URL)
+        }
       }
       return acc
     }, {} as Record<string, unknown>)
@@ -522,7 +557,7 @@ export const useMagicSearchParams = <
     const keyStr = String(key)
     const shouldConvert = options?.convert !== false
     const value = shouldConvert
-      ? convertOriginalType(keyStr)
+      ? enforceCoercedType(keyStr, convertOriginalType(keyStr))
       : getStringUrl(keyStr, CURRENT_PARAMS_URL)
 
     return value as ParamReturn<K, T>

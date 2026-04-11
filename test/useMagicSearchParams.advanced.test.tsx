@@ -299,4 +299,31 @@ describe('useMagicSearchParams advanced features', () => {
     expect(params.page_size).toBe(50)
     expect(params.only_unmapped).toBe(true)
   })
+
+  it('coerceParams should enforce boolean runtime type in convert=true as safety layer', () => {
+    const initialEntries = ['/?page=2&page_size=50&only_unmapped=true']
+
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1, page_size: 50 },
+          optional: { only_unmapped: '' as boolean | '' },
+          coerceParams: {
+            only_unmapped: 'boolean'
+          },
+          codecs: {
+            only_unmapped: {
+              parse: (value) => String(Array.isArray(value) ? value[0] : value ?? '') as boolean | ''
+            }
+          }
+        }),
+      {
+        wrapper: ({ children }) => <Wrapper initialEntries={initialEntries}>{children}</Wrapper>
+      }
+    )
+
+    const params = result.current.getParams({ convert: true })
+    expect(params.only_unmapped).toBe(true)
+    expect(typeof params.only_unmapped).toBe('boolean')
+  })
 })
