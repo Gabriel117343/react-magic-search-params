@@ -276,4 +276,27 @@ describe('useMagicSearchParams advanced features', () => {
     expect(params.search).toBeUndefined()
     expect(params.order).toBe('date')
   })
+
+  it('coerceParams should coerce ambiguous optional values like boolean unions', () => {
+    const initialEntries = ['/?page=2&page_size=50&only_unmapped=true']
+
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1, page_size: 50 },
+          optional: { search: '', rubro: '', only_unmapped: '' as boolean | '' },
+          coerceParams: {
+            only_unmapped: 'boolean'
+          }
+        }),
+      {
+        wrapper: ({ children }) => <Wrapper initialEntries={initialEntries}>{children}</Wrapper>
+      }
+    )
+
+    const params = result.current.getParams({ convert: true })
+    expect(params.page).toBe(2)
+    expect(params.page_size).toBe(50)
+    expect(params.only_unmapped).toBe(true)
+  })
 })

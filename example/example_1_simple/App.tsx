@@ -1,38 +1,11 @@
 import React, { useRef } from 'react';
 import { useMagicSearchParams } from '../../src';
-import { paramsUsers, type TagsUserProps } from './constants/defaultParamsPage';
+import { paramsUserConfig, type TagsUserProps } from './constants/defaultParamsPage';
 
 export default function App() {
   const debounceRef = useRef<number | null>(null);
 
-  const { getParams, getParam, updateParams, clearParams, pagination } = useMagicSearchParams({
-    ...paramsUsers,
-    defaultParams: paramsUsers.mandatory,
-    forceParams: { page_size: 10 },
-    arraySerialization: 'csv',
-    omitParamsByValues: ['all', 'default'],
-    historyMode: 'replace',
-    unknownParamsPolicy: 'preserve',
-    paginationStrategy: {
-      mode: 'page',
-      pageKey: 'page',
-      pageSizeKey: 'page_size',
-    },
-    resetOnChange: {
-      q: ['page', 'cursor'],
-      order: ['page', 'cursor'],
-      tags: ['page', 'cursor'],
-    },
-    codecs: {
-      q: {
-        parse: (value) => String(Array.isArray(value) ? value[0] : value ?? '').trim(),
-        serialize: (value) => String(value ?? '').trim().toLowerCase(),
-      },
-      cursor: {
-        parse: (value) => (Array.isArray(value) ? value[0] : value ?? ''),
-      },
-    },
-  });
+  const { getParams, getParam, updateParams, clearParams, pagination } = useMagicSearchParams(paramsUserConfig);
 
   const {
     page,
@@ -41,6 +14,7 @@ export default function App() {
     order = '',
     tags = [],
     cursor = '',
+    only_unmapped = '',
   } = getParams({
     convert: true,
   });
@@ -139,6 +113,26 @@ export default function App() {
         <option value="desc">desc</option>
       </select>
 
+      <label htmlFor="only_unmapped">Only unmapped</label>
+      <select
+        id="only_unmapped"
+        value={String(only_unmapped)}
+        onChange={(event) => {
+          const value = event.target.value;
+          updateParams({
+            newParams: {
+              only_unmapped:
+                value === '' ? '' : value === 'true',
+            },
+          });
+        }}
+        style={{ display: 'block', width: '100%', marginBottom: 12 }}
+      >
+        <option value="">all</option>
+        <option value="true">only unmapped</option>
+        <option value="false">mapped too</option>
+      </select>
+
       <section style={{ marginBottom: 12 }}>
         {availableTags.map((tag) => {
           const active = Array.isArray(tags) && tags.includes(tag);
@@ -190,6 +184,7 @@ export default function App() {
     page_size,
     q,
     order,
+    only_unmapped,
     cursor,
     tags,
     tagsRaw,

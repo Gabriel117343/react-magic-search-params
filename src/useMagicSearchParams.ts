@@ -32,6 +32,11 @@ type ParamCodecs<TParams extends Record<string, unknown>> = Partial<{
 
 type ParamKey<TParams extends Record<string, unknown>> = Extract<keyof TParams, string>
 
+export type CoerceParamType = 'string' | 'number' | 'boolean' | 'array'
+export type CoerceParams<TParams extends Record<string, unknown>> = Partial<
+  Record<ParamKey<TParams>, CoerceParamType>
+>
+
 export type PaginationStrategy<TParams extends Record<string, unknown>> =
   | {
       mode: 'page'
@@ -82,6 +87,7 @@ export interface UseMagicSearchParamsOptions<
   forceParams?: Partial<MergeParams<M, O>>
   arraySerialization?: 'csv' | 'repeat' | 'brackets'
   omitParamsByValues?: Array<OmitParamValue>
+  coerceParams?: CoerceParams<MergeParams<M, O>>
   codecs?: ParamCodecs<MergeParams<M, O>>
   historyMode?: HistoryMode
   resetOnChange?: ResetOnChangeRules<MergeParams<M, O>>
@@ -107,6 +113,7 @@ export const useMagicSearchParams = <
   arraySerialization = 'csv',
   forceParams = {} as Partial<MergeParams<M, O>>,
   omitParamsByValues = [] as Array<OmitParamValue>,
+  coerceParams = {} as CoerceParams<MergeParams<M, O>>,
   codecs = {} as ParamCodecs<MergeParams<M, O>>,
   historyMode = 'push',
   resetOnChange = {} as ResetOnChangeRules<MergeParams<M, O>>,
@@ -372,6 +379,32 @@ export const useMagicSearchParams = <
     const codec = codecs[key as keyof MergeParams<M, O>]
     if (codec?.parse) {
       return codec.parse(rawValue, { key, searchParams })
+    }
+
+    const coerceType = coerceParams[key as ParamKey<MergeParams<M, O>>]
+    if (coerceType === 'number') {
+      const parsed = Number.parseInt(String(rawValue ?? ''), 10)
+      if (Number.isNaN(parsed)) {
+        const defaultNumber = getDefaultValueForKey(key, 0)
+        return typeof defaultNumber === 'number' ? defaultNumber : 0
+      }
+      return parsed
+    }
+
+    if (coerceType === 'boolean') {
+      return String(rawValue) === 'true'
+    }
+
+    if (coerceType === 'array') {
+      if (arraySerialization === 'csv') {
+        return String(rawValue ?? '').split(',').filter(Boolean)
+      }
+      return Array.isArray(rawValue) ? rawValue : rawValue ? [rawValue] : []
+    }
+
+    if (coerceType === 'string') {
+      if (Array.isArray(rawValue)) return rawValue[0] ?? ''
+      return rawValue ?? ''
     }
 
     if (typeof TOTAL_PARAMS_PAGE[key] === 'number') {

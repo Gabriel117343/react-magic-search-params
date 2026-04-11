@@ -29,18 +29,12 @@ export const UserContainer = () => {
     q = '',
     order = '',
     only_is_active = false,
+    only_unmapped = '',
     tags = [],
     cursor = '',
   } = getParams({
     convert: true,
-  }) as {
-    page: number
-    q: string
-    order: string
-    only_is_active: boolean
-    tags: string[]
-    cursor: string
-  }
+  })
 
   const tagsWithoutConvert = String(getParam('tags', { convert: false }))
 
@@ -185,6 +179,38 @@ export const UserContainer = () => {
         </div>
 
         <div className='mb-6'>
+          <label
+            htmlFor='only_unmapped'
+            className='block text-sm font-medium text-gray-700 mb-1 dark:text-white'
+          >
+            Unmapped mode (coerceParams boolean | '')
+          </label>
+          <select
+            id='only_unmapped'
+            value={String(only_unmapped)}
+            onChange={(event) => {
+              const value = event.target.value
+              updateParams({
+                newParams: {
+                  only_unmapped: value === '' ? '' : value === 'true',
+                },
+              })
+            }}
+            className='w-full border border-gray-300 rounded-md p-3 focus:ring-blue-500 focus:border-blue-500 dark:text-white'
+          >
+            <option value='' className='dark:bg-sky-950'>
+              All
+            </option>
+            <option value='true' className='dark:bg-sky-950'>
+              Only unmapped
+            </option>
+            <option value='false' className='dark:bg-sky-950'>
+              Mapped too
+            </option>
+          </select>
+        </div>
+
+        <div className='mb-6'>
           <h3 className='text-lg font-semibold mb-3'>Select Tags</h3>
           <div className='flex flex-wrap gap-2'>
             {availableTags.map((tag) => {
@@ -209,6 +235,7 @@ export const UserContainer = () => {
           page={page}
           only_is_active={only_is_active}
           tags={tags}
+          only_unmapped={only_unmapped}
           order={order}
           q={q}
           cursor={cursor}

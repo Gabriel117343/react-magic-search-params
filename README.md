@@ -27,6 +27,7 @@ npm install react-magic-search-params
    2.4 [forceParams](#forceparams)
    2.5 [omitParamsByValues](#omitparamsbyvalues)
    2.6 [arraySerialization](#arrayserialization)
+  2.7 [coerceParams](#coerceparams)
 3. [Usage Recommendation with a Constants File](#usage-recommendation-with-a-constants-file)
 4. [Main Functions](#main-functions)
    4.1 [getParams](#getparams)
@@ -189,6 +190,35 @@ Controls how array params are represented in the URL:
 - `csv` -> `tags=react,node`
 - `repeat` -> `tags=react&tags=node`
 - `brackets` -> `tags[]=react&tags[]=node`
+
+### coerceParams
+
+Use `coerceParams` when a key cannot be inferred correctly from runtime defaults (for example `boolean | ''` or `number | ''`).
+
+This lets you provide explicit conversion hints without writing full codecs.
+
+```ts
+const paramsGirosMapping = {
+  mandatory: {
+    page: 1,
+    page_size: 50 as const,
+  },
+  optional: {
+    search: '',
+    rubro: '',
+    only_unmapped: '' as boolean | '',
+  },
+};
+
+useMagicSearchParams({
+  ...paramsGirosMapping,
+  coerceParams: {
+    only_unmapped: 'boolean',
+  },
+});
+```
+
+Supported coercion hints: `string`, `number`, `boolean`, `array`.
 
 ## Usage Recommendation with a Constants File 📁
 

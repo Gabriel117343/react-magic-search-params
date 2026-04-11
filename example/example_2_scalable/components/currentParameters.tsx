@@ -5,6 +5,7 @@ interface CurrentParametersProps {
   page: number;
   only_is_active: boolean;
   tagsWithoutConvert: string;
+  only_unmapped: boolean | '';
   order: string;
   q: string;
   cursor: string;
@@ -12,7 +13,7 @@ interface CurrentParametersProps {
 }
 
 export const CurrentParameters = (props: CurrentParametersProps) => {
-  const { only_is_active, order, page, q, cursor, tags, tagsWithoutConvert } = props;
+  const { only_is_active, only_unmapped, order, page, q, cursor, tags, tagsWithoutConvert } = props;
 
   return (
     <div className="mb-6">
@@ -30,6 +31,10 @@ export const CurrentParameters = (props: CurrentParametersProps) => {
       </p>
       <p>
         <strong>Tags:</strong> {JSON.stringify(tags)}
+      </p>
+      <p>
+        <strong>Only Unmapped:</strong>{' '}
+        {only_unmapped === '' ? 'All' : only_unmapped ? 'Yes' : 'No'}
       </p>
       <hr className="mt-2" />
       <small className="bg-yellow-300 rounded-sm p-0.5 dark:bg-cyan-600">

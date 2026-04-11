@@ -54,6 +54,18 @@ updateParams({ newParams: { tags: 'react' } });
 clearParams({ keepMandatoryParams: true });
 ```
 
+If you have ambiguous optional unions (for example `boolean | ''`), use `coerceParams`:
+
+```tsx
+const { getParams } = useMagicSearchParams({
+  mandatory: { page: 1, page_size: 50 },
+  optional: { only_unmapped: '' as boolean | '' },
+  coerceParams: { only_unmapped: 'boolean' },
+});
+
+const { only_unmapped } = getParams({ convert: true });
+```
+
 ## API
 
 - `getParams({ convert?: boolean })`

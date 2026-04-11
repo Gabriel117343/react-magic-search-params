@@ -24,6 +24,8 @@ Use this guidance when generating code that consumes `useMagicSearchParams`.
   Use: `historyMode: 'replace'` globally or per update override
 - Requirement: preserve unknown params from external systems
   Use: `unknownParamsPolicy: 'preserve'`
+- Requirement: union-like ambiguous values (e.g. `boolean | ''`, `number | ''`)
+  Use: `coerceParams` first
 - Requirement: custom parse/serialize behavior
   Use: `codecs`
 - Requirement: side effects when a param changes
@@ -35,10 +37,12 @@ Use this guidance when generating code that consumes `useMagicSearchParams`.
 2. Add defaults and constraints (`defaultParams`, `forceParams`).
 3. Add URL cleanliness rules (`omitParamsByValues`, `unknownParamsPolicy`).
 4. Add behavior rules (`resetOnChange`, `historyMode`, `paginationStrategy`).
-5. Add codecs only when default conversion is not enough.
+5. Add `coerceParams` for ambiguous runtime inference cases.
+6. Add codecs only when default conversion or coerce hints are not enough.
 
 ## Project-specific Notes
 
 - Prefer local constants per screen for stronger TypeScript inference.
+- For ambiguous optional unions, prefer `coerceParams` before writing custom codecs.
 - Keep examples and docs in English.
 - Use pnpm commands in this repository (`pnpm test`, `pnpm run typecheck`, `pnpm run build`).

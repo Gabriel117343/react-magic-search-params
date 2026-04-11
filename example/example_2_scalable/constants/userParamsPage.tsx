@@ -16,6 +16,7 @@ export const paramsUsers = {
     order: '',
     q: '',
     cursor: '',
+    only_unmapped: '' as boolean | '',
 
   }
 }
@@ -38,6 +39,9 @@ export const paramsUserConfig: UsersHookConfig = {
   forceParams: { page_size: 10 },
   arraySerialization: "csv",
   omitParamsByValues: ["all", "default"],
+  coerceParams: {
+    only_unmapped: 'boolean',
+  },
   historyMode: 'replace',
   unknownParamsPolicy: 'preserve',
   paginationStrategy: {
@@ -49,6 +53,7 @@ export const paramsUserConfig: UsersHookConfig = {
     q: ['page', 'cursor'],
     order: ['page', 'cursor'],
     tags: ['page', 'cursor'],
+    only_unmapped: ['page', 'cursor'],
     only_is_active: ['page', 'cursor'],
   },
   codecs: {
