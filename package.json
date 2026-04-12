@@ -24,7 +24,7 @@
     "pagination",
     "sorting"
   ],
-  "version": "2.2.3",
+  "version": "2.3.0",
   "private": false,
   "license": "MIT",
   "main": "dist/index.cjs",

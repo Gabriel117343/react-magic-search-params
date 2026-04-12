@@ -357,6 +357,25 @@ export const useMagicSearchParams = <
     return fallback
   }
 
+  const isOptionalEmptyStringKey = (key: string) => {
+    if (!Object.prototype.hasOwnProperty.call(optional, key)) return false
+
+    return optional[key as keyof typeof optional] === ''
+  }
+
+  const parseBooleanByContract = (key: string, rawInput: unknown): boolean | '' => {
+    const normalizedRaw = Array.isArray(rawInput) ? rawInput[0] : rawInput
+    const rawString = normalizedRaw == null ? '' : String(normalizedRaw).trim().toLowerCase()
+
+    if (rawString === 'true') return true
+    if (rawString === 'false') return false
+
+    if (isOptionalEmptyStringKey(key)) return ''
+
+    const defaultBoolean = getDefaultValueForKey(key, false)
+    return typeof defaultBoolean === 'boolean' ? defaultBoolean : false
+  }
+
   const hasForcedParamsValues = ({
     paramsForced,
     compareParams
@@ -392,7 +411,7 @@ export const useMagicSearchParams = <
     }
 
     if (coerceType === 'boolean') {
-      return String(rawValue) === 'true'
+      return parseBooleanByContract(key, rawValue)
     }
 
     if (coerceType === 'array') {
@@ -417,7 +436,7 @@ export const useMagicSearchParams = <
     }
 
     if (typeof TOTAL_PARAMS_PAGE[key] === 'boolean') {
-      return String(rawValue) === 'true'
+      return parseBooleanByContract(key, rawValue)
     }
 
     if (Array.isArray(TOTAL_PARAMS_PAGE[key])) {
@@ -439,8 +458,7 @@ export const useMagicSearchParams = <
     if (!coerceType) return value
 
     if (coerceType === 'boolean') {
-      if (typeof value === 'boolean') return value
-      return String(value ?? '') === 'true'
+      return parseBooleanByContract(key, value)
     }
 
     if (coerceType === 'number') {
@@ -527,10 +545,25 @@ export const useMagicSearchParams = <
    * Gets current URL params and converts to original types if desired.
    */
   const getParams = ({ convert = true } = {}): MergeParams<M, O> => {
-    const params = Object.keys(CURRENT_PARAMS_URL).reduce((acc, key) => {
+    const params = (convert === true
+      ? PARAM_ORDER
+      : Object.keys(CURRENT_PARAMS_URL)
+    ).reduce((acc, key) => {
       if (Object.prototype.hasOwnProperty.call(TOTAL_PARAMS_PAGE, key)) {
         const realKey = arraySerialization === 'brackets' ? key.replace('[]', '') : key
+
         if (convert === true) {
+          const hasMandatoryKey = Object.prototype.hasOwnProperty.call(mandatory, realKey)
+          const hasKeyInUrl = Object.prototype.hasOwnProperty.call(CURRENT_PARAMS_URL, realKey)
+          const shouldIncludeOptionalBooleanUnset =
+            Object.prototype.hasOwnProperty.call(optional, realKey) &&
+            coerceParams[realKey as ParamKey<MergeParams<M, O>>] === 'boolean' &&
+            isOptionalEmptyStringKey(realKey)
+
+          if (!hasMandatoryKey && !hasKeyInUrl && !shouldIncludeOptionalBooleanUnset) {
+            return acc
+          }
+
           const convertedValue = convertOriginalType(realKey)
           ;(acc as Record<string, unknown>)[realKey] = enforceCoercedType(realKey, convertedValue)
         } else {

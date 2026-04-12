@@ -200,7 +200,9 @@ describe('useMagicSearchParams advanced features', () => {
     })
 
     expect(result.current.searchParams.get('utm_source')).toBe('google')
-    expect(result.current.getParams({ convert: true }).search).toBe('abc')
+    const params = result.current.getParams({ convert: true })
+    expect(params.search).toBe('abc')
+    expect((params as Record<string, unknown>).utm_source).toBeUndefined()
   })
 
   it('unknownParamsPolicy drop should remove unknown params after updates', () => {
@@ -325,5 +327,185 @@ describe('useMagicSearchParams advanced features', () => {
     const params = result.current.getParams({ convert: true })
     expect(params.only_unmapped).toBe(true)
     expect(typeof params.only_unmapped).toBe('boolean')
+  })
+
+  it('coerceParams boolean should keep optional boolean union as empty when value is absent', () => {
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1, page_size: 50 },
+          optional: { only_unmapped: '' as boolean | '' },
+          coerceParams: {
+            only_unmapped: 'boolean'
+          }
+        }),
+      {
+        wrapper: Wrapper
+      }
+    )
+
+    const params = result.current.getParams({ convert: true })
+    expect(params.only_unmapped).toBe('')
+  })
+
+  it('coerceParams boolean should keep optional boolean union as empty for empty or invalid url values', () => {
+    const emptyEntries = ['/?page=1&page_size=50&only_unmapped=']
+    const invalidEntries = ['/?page=1&page_size=50&only_unmapped=trueff']
+
+    const { result: emptyResult } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1, page_size: 50 },
+          optional: { only_unmapped: '' as boolean | '' },
+          coerceParams: {
+            only_unmapped: 'boolean'
+          }
+        }),
+      {
+        wrapper: ({ children }) => <Wrapper initialEntries={emptyEntries}>{children}</Wrapper>
+      }
+    )
+
+    const { result: invalidResult } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1, page_size: 50 },
+          optional: { only_unmapped: '' as boolean | '' },
+          coerceParams: {
+            only_unmapped: 'boolean'
+          }
+        }),
+      {
+        wrapper: ({ children }) => <Wrapper initialEntries={invalidEntries}>{children}</Wrapper>
+      }
+    )
+
+    expect(emptyResult.current.getParams({ convert: true }).only_unmapped).toBe('')
+    expect(invalidResult.current.getParams({ convert: true }).only_unmapped).toBe('')
+  })
+
+  it('coerceParams boolean should keep mandatory booleans strict', () => {
+    const initialEntries = ['/?page=1&page_size=50&only_is_active=trueff']
+
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1, page_size: 50, only_is_active: true },
+          optional: {},
+          coerceParams: {
+            only_is_active: 'boolean'
+          }
+        }),
+      {
+        wrapper: ({ children }) => <Wrapper initialEntries={initialEntries}>{children}</Wrapper>
+      }
+    )
+
+    const params = result.current.getParams({ convert: true })
+    expect(params.only_is_active).toBe(true)
+    expect(typeof params.only_is_active).toBe('boolean')
+  })
+
+  it('coerceParams number should convert numeric strings from URL and updates', () => {
+    const initialEntries = ['/?page=1&page_size=50&amount=33']
+
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1, page_size: 50 },
+          optional: { amount: '' as number | '' },
+          coerceParams: {
+            amount: 'number'
+          }
+        }),
+      {
+        wrapper: ({ children }) => <Wrapper initialEntries={initialEntries}>{children}</Wrapper>
+      }
+    )
+
+    expect(result.current.getParams({ convert: true }).amount).toBe(33)
+    expect(typeof result.current.getParams({ convert: true }).amount).toBe('number')
+
+    act(() => {
+      result.current.updateParams({
+        newParams: {
+          amount: '44' as unknown as number | ''
+        }
+      })
+    })
+
+    expect(result.current.getParams({ convert: true }).amount).toBe(44)
+    expect(typeof result.current.getParams({ convert: true }).amount).toBe('number')
+  })
+
+  it('array params declared as arrays should convert correctly without manual string tricks', () => {
+    const initialEntries = ['/?page=1&tags=react,node,typescript']
+
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1 },
+          optional: { tags: [] as string[] },
+          arraySerialization: 'csv'
+        }),
+      {
+        wrapper: ({ children }) => <Wrapper initialEntries={initialEntries}>{children}</Wrapper>
+      }
+    )
+
+    const params = result.current.getParams({ convert: true })
+    expect(Array.isArray(params.tags)).toBe(true)
+    expect(params.tags).toEqual(['react', 'node', 'typescript'])
+  })
+
+  it('json-like array strings require codecs even when coerceParams uses array', () => {
+    const initialEntries = ['/?page=1&tags_payload=%5B%22react%22%2C%22node%22%5D']
+
+    const { result: withoutCodec } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1 },
+          optional: { tags_payload: '' },
+          coerceParams: {
+            tags_payload: 'array'
+          }
+        }),
+      {
+        wrapper: ({ children }) => <Wrapper initialEntries={initialEntries}>{children}</Wrapper>
+      }
+    )
+
+    const { result: withCodec } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1 },
+          optional: { tags_payload: '' },
+          coerceParams: {
+            tags_payload: 'array'
+          },
+          codecs: {
+            tags_payload: {
+              parse: (value) => {
+                const raw = String(Array.isArray(value) ? value[0] : value ?? '')
+                try {
+                  const parsed = JSON.parse(raw)
+                  return Array.isArray(parsed) ? parsed : []
+                } catch {
+                  return []
+                }
+              }
+            }
+          }
+        }),
+      {
+        wrapper: ({ children }) => <Wrapper initialEntries={initialEntries}>{children}</Wrapper>
+      }
+    )
+
+    expect(withoutCodec.current.getParams({ convert: true }).tags_payload).toEqual([
+      '["react"',
+      '"node"]'
+    ])
+    expect(withCodec.current.getParams({ convert: true }).tags_payload).toEqual(['react', 'node'])
   })
 })

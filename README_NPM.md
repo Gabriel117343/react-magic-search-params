@@ -9,6 +9,8 @@
 
 Type-safe query/search parameter management for React Router, built as an extension over useSearchParams.
 
+Define one params contract per screen (`mandatory` + `optional`) so URL state stays predictable and strongly typed.
+
 ## Installation
 
 ```bash
@@ -65,6 +67,12 @@ const { getParams } = useMagicSearchParams({
 
 const { only_unmapped } = getParams({ convert: true });
 ```
+
+For optional boolean unions with `''` as default, coercion keeps `''` for absent/empty/invalid URL values and returns booleans only for valid `true`/`false` inputs.
+
+For arrays, prefer real array defaults in your contract (`tags: []`). In that contract shape, `coerceParams: 'array'` works for query-array formats (`csv`, `repeat`, `brackets`). Use codecs only when a key is modeled as a string that carries JSON-like array text (for example `"[]"`).
+
+If your menu/sidebar links should always open with mandatory URL state, prebuild links with mandatory params and keep `defaultParams` in the page hook. Use `forceParams` only for non-user-controllable keys (for example `page_size`), not necessarily all mandatory keys.
 
 ## API
 

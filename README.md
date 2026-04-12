@@ -220,6 +220,10 @@ useMagicSearchParams({
 
 Supported coercion hints: `string`, `number`, `boolean`, `array`.
 
+For optional boolean unions declared as `boolean | ''` with default `''`, boolean coercion keeps `''` for absent, empty, or invalid URL values instead of forcing `false`. This preserves a clean "not selected" filter state.
+
+For arrays, prefer declaring real array defaults in the contract (for example `tags: []`). In that contract shape, `coerceParams: { key: 'array' }` works with query-array formats (`csv`, `repeat`, `brackets`). A custom codec is only needed when a key is modeled as a string that contains JSON-like array text (for example `"[]"`).
+
 ## Usage Recommendation with a Constants File 📁
 
 Define one constants file per view/screen.
@@ -259,6 +263,10 @@ export const paramsUsers = {
 ### getParams
 
 Returns current query params as an object.
+
+`getParams` follows your declared contract (`mandatory` + `optional`) and only exposes known keys from that contract.
+
+`unknownParamsPolicy` (default: `drop`) controls how unknown keys are preserved or dropped in URL operations; it does not add unknown keys to `getParams` output.
 
 - `convert: true` (default): values are converted to inferred original types
 - `convert: false`: values are returned in URL-oriented format
@@ -447,6 +455,40 @@ export function FilterUsers() {
 3. Prefer one params constants file per view to avoid accidental contract drift.
 4. Use `forceParams` for limits that should never be user-controlled.
 5. Use `omitParamsByValues` to avoid noisy URLs with non-informative values.
+
+### Deep Links With Mandatory Params
+
+If your sidebar/menu routes should always open with a known mandatory URL state, generating links with mandatory params is a good pattern.
+
+```ts
+const assignMandatoryParams = (
+  paramsMandatory: Record<string, string | number | boolean>
+) => {
+  const stringParams: Record<string, string> = {}
+  for (const [key, val] of Object.entries(paramsMandatory)) {
+    stringParams[key] = String(val)
+  }
+  return new URLSearchParams(stringParams).toString()
+}
+
+const path = `/admin/categories/list?${assignMandatoryParams(paramsCategoriesList.mandatory)}`
+```
+
+Then, inside the page hook, keep this contract-first setup:
+
+```tsx
+const { getParams, updateParams } = useMagicSearchParams({
+  ...paramsUsers,
+  defaultParams: paramsUsers.mandatory,
+  forceParams: { page_size: 10 },
+})
+```
+
+Notes:
+
+- `defaultParams: paramsUsers.mandatory` ensures mandatory keys are present when the page boots.
+- Use `forceParams` for non-user-controllable keys (for example `page_size`), not necessarily all mandatory keys.
+- Forcing all mandatory keys can block legitimate runtime changes (for example `page` in pagination).
 
 ## Advanced Options
 
