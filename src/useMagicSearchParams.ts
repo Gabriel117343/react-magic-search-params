@@ -127,8 +127,7 @@ export const useMagicSearchParams = <
   type ParamUpdateInput<T> =
     | T
     | ''
-    | (T extends Array<infer TItem> ? TItem | string : never)
-    | (T extends string ? string : never)
+    | (T extends Array<infer TItem> ? TItem : never)
 
   type NewParams = Partial<{
     [K in keyof Params]: ParamUpdateInput<Params[K]>

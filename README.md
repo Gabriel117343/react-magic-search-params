@@ -293,8 +293,8 @@ Safely updates URL params.
 
 Type note:
 
-- For string-like params (including string unions), `updateParams` accepts UI-emitted `string` values directly.
-- For array params, `updateParams` accepts either an array or a single item string (toggle behavior).
+- `updateParams` preserves the declared contract types (including string unions), so TypeScript autocomplete stays precise.
+- For array params, `updateParams` accepts either an array or a single typed item (toggle behavior).
 - You can pass `''` as a remove signal for optional keys; omitted values are removed from the URL.
 
 ```tsx
