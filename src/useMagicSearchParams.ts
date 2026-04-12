@@ -123,7 +123,17 @@ export const useMagicSearchParams = <
   type Params = MergeParams<M, O>
   type Keys = ParamKey<Params>
   type KeepParams = Partial<Record<Keys, boolean>>
-  type NewParams = Partial<Params>
+
+  type ParamUpdateInput<T> =
+    | T
+    | ''
+    | (T extends Array<infer TItem> ? TItem | string : never)
+    | (T extends string ? string : never)
+
+  type NewParams = Partial<{
+    [K in keyof Params]: ParamUpdateInput<Params[K]>
+  }>
+
   type UpdateParamsObject = {
     newParams?: NewParams | ((current: Params) => NewParams)
     keepParams?: KeepParams

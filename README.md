@@ -287,14 +287,19 @@ const tags = getParam('tags', { convert: true });
 Safely updates URL params.
 
 - `newParams`: keys to set/update
-- `keepParams`: explicitly keep/remove selected keys from previous state
+- `keepParams`: optional map to explicitly remove selected keys from previous state (`false`)
 - `historyMode`: optional per-call override (`push` or `replace`)
 - `newParams` also supports functional updater
+
+Type note:
+
+- For string-like params (including string unions), `updateParams` accepts UI-emitted `string` values directly.
+- For array params, `updateParams` accepts either an array or a single item string (toggle behavior).
+- You can pass `''` as a remove signal for optional keys; omitted values are removed from the URL.
 
 ```tsx
 updateParams({
   newParams: { page: 1, search: 'john' },
-  keepParams: { order: true },
 });
 
 updateParams({
@@ -307,6 +312,8 @@ updateParams((prev) => ({
   historyMode: 'replace',
 }));
 ```
+
+`keepParams` is not required for keys you want to keep. Use it only when you want to explicitly remove a key (`false`).
 
 ### clearParams
 

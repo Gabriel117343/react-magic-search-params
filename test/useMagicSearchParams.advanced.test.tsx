@@ -406,6 +406,38 @@ describe('useMagicSearchParams advanced features', () => {
     expect(typeof params.only_is_active).toBe('boolean')
   })
 
+  it('updateParams should allow empty string as remove signal for optional params', () => {
+    const initialEntries = ['/?page=1&page_size=10&entity_type=region']
+
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1, page_size: 10 },
+          optional: {
+            entity_type: '' as 'region' | 'province' | ''
+          }
+        }),
+      {
+        wrapper: ({ children }) => <Wrapper initialEntries={initialEntries}>{children}</Wrapper>
+      }
+    )
+
+    expect(result.current.getParams({ convert: true }).entity_type).toBe('region')
+
+    act(() => {
+      result.current.updateParams({
+        newParams: {
+          entity_type: '',
+          page: 1
+        }
+      })
+    })
+
+    const params = result.current.getParams({ convert: true })
+    expect(params.entity_type).toBeUndefined()
+    expect(result.current.searchParams.get('entity_type')).toBeNull()
+  })
+
   it('coerceParams number should convert numeric strings from URL and updates', () => {
     const initialEntries = ['/?page=1&page_size=50&amount=33']
 
