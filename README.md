@@ -222,6 +222,36 @@ Supported coercion hints: `string`, `number`, `boolean`, `array`.
 
 For optional boolean unions declared as `boolean | ''` with default `''`, boolean coercion keeps `''` for absent, empty, or invalid URL values instead of forcing `false`. This preserves a clean "not selected" filter state.
 
+Use `getParams({ convert: true, forRequest: true })` when you want the same contract sanitized for backend requests. `coerceParams` solves runtime conversion, while `forRequest` removes empty request values like `''`, `null`, and `undefined`.
+
+### protectedParams
+
+Use `protectedParams` when a param should appear obfuscated in the URL but still be read normally by the hook.
+
+This is useful for shareable links with active filters such as IDs:
+
+```ts
+useMagicSearchParams({
+  mandatory: { page: 1 },
+  optional: { commerce_id: '', user_id: '' },
+  protectedParams: {
+    commerce_id: true,
+    user_id: {
+      serialize: (value) => `safe-${String(value)}`,
+      parse: (value) => String(Array.isArray(value) ? value[0] : value ?? '').replace(/^safe-/, ''),
+    },
+  },
+});
+```
+
+- `true` uses the built-in `base64url` obfuscation
+- object form lets you override `serialize` and/or `parse`
+- `getParams({ convert: true })` returns the de-obfuscated value
+- `getParams({ convert: false })` returns the raw URL value
+
+> [!WARNING]
+> `protectedParams` is for obfuscation and DX, not real security or encryption.
+
 For arrays, prefer declaring real array defaults in the contract (for example `tags: []`). In that contract shape, `coerceParams: { key: 'array' }` works with query-array formats (`csv`, `repeat`, `brackets`). A custom codec is only needed when a key is modeled as a string that contains JSON-like array text (for example `"[]"`).
 
 ## Usage Recommendation with a Constants File 📁
@@ -270,11 +300,15 @@ Returns current query params as an object.
 
 - `convert: true` (default): values are converted to inferred original types
 - `convert: false`: values are returned in URL-oriented format
+- `forRequest: true`: after conversion, omits keys whose value is `''`, `null`, or `undefined`
 
 ```tsx
 const { page, only_is_active, tags } = getParams({ convert: true });
 const tagsRaw = getParams({ convert: false }).tags;
+const apiParams = getParams({ convert: true, forRequest: true });
 ```
+
+`forRequest` is useful when the same screen contract feeds a backend call. It keeps meaningful falsy values like `false` and `0`, keeps mandatory params such as pagination keys, and does not reuse `omitParamsByValues`.
 
 You can also read a single key:
 
@@ -364,6 +398,7 @@ pagination.reset();
 ## Key Features and Benefits
 
 - typed query state with better DX
+- request-ready params from the same screen contract
 - centralized defaults, force rules, and omission rules
 - cleaner URL output and predictable key order
 - array support with three serialization strategies
@@ -371,6 +406,7 @@ pagination.reset();
 - built-in pagination helpers (page, offset, cursor)
 - unknown param policy (`drop` / `preserve`)
 - functional updater support for complex transitions
+- smoother React Query / TanStack Query integration
 - better scalability across medium and large React Router apps
 
 ## Usage Example & Explanations
@@ -433,6 +469,66 @@ export function FilterUsers() {
   );
 }
 ```
+
+### React Query Integration
+
+```tsx
+import { useQuery } from '@tanstack/react-query';
+import { useMagicSearchParams } from 'react-magic-search-params';
+
+type CommerceStatus = 'draft' | 'approved' | 'rejected';
+
+const paramsAdminCommercesList = {
+  mandatory: {
+    page: 1,
+    limit: 20 as const,
+  },
+  optional: {
+    search: '',
+    status: '' as CommerceStatus | '',
+    is_verified: '' as boolean | '',
+    is_company_verified: '' as boolean | '',
+  },
+  coerceParams: {
+    page: 'number',
+    limit: 'number',
+    is_verified: 'boolean',
+    is_company_verified: 'boolean',
+  } as const,
+};
+
+export function AdminCommercesList() {
+  const { getParams, updateParams } = useMagicSearchParams({
+    ...paramsAdminCommercesList,
+    defaultParams: paramsAdminCommercesList.mandatory,
+  });
+
+  const filters = getParams({ convert: true });
+  const queryParams = getParams({ convert: true, forRequest: true });
+
+  const commercesQuery = useQuery({
+    queryKey: ['admin-commerces', queryParams],
+    queryFn: () => listAdminCommerces(queryParams),
+  });
+
+  function handleSearchChange(search: string) {
+    updateParams({ newParams: { page: 1, search }, historyMode: 'replace' });
+  }
+
+  return (
+    <>
+      <p>Current search: {filters.search}</p>
+      <button onClick={() => handleSearchChange('bakery')}>Search bakery</button>
+      <pre>{JSON.stringify(commercesQuery.data, null, 2)}</pre>
+    </>
+  );
+}
+```
+
+This split is intentional:
+
+- `getParams({ convert: true })` is UI/state-friendly and preserves empty filter state.
+- `getParams({ convert: true, forRequest: true })` is backend-friendly and avoids repetitive request cleanup.
 
 ## Array Serialization in the URL (new)
 

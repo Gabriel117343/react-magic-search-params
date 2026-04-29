@@ -18,6 +18,21 @@ type MergeParams<M, O> = {
   [K in keyof O]?: O[K]
 }
 
+type EmptyParamValue = '' | null | undefined
+
+type SanitizedMandatoryParams<M> = {
+  [K in keyof M]: Exclude<M[K], EmptyParamValue>
+}
+
+type SanitizedOptionalParams<O> = {
+  [K in keyof O as Exclude<O[K], EmptyParamValue> extends never ? never : K]?: Exclude<
+    O[K],
+    EmptyParamValue
+  >
+}
+
+type RequestSafeParams<M, O> = SanitizedMandatoryParams<M> & SanitizedOptionalParams<O>
+
 export type ParamCodec<TValue> = {
   parse?: (
     value: string | string[] | null,
@@ -31,6 +46,23 @@ type ParamCodecs<TParams extends Record<string, unknown>> = Partial<{
 }>
 
 type ParamKey<TParams extends Record<string, unknown>> = Extract<keyof TParams, string>
+
+export type ProtectedParamCodec<TValue> =
+  | true
+  | {
+      parse?: (
+        value: string | string[] | null,
+        context: { key: string; searchParams: URLSearchParams }
+      ) => TValue
+      serialize?: (
+        value: TValue,
+        context: { key: string }
+      ) => string | string[] | null | undefined
+    }
+
+export type ProtectedParams<TParams extends Record<string, unknown>> = Partial<{
+  [K in keyof TParams]: ProtectedParamCodec<TParams[K]>
+}>
 
 export type CoerceParamType = 'string' | 'number' | 'boolean' | 'array'
 export type CoerceParams<TParams extends Record<string, unknown>> = Partial<
@@ -89,6 +121,7 @@ export interface UseMagicSearchParamsOptions<
   omitParamsByValues?: Array<OmitParamValue>
   coerceParams?: CoerceParams<MergeParams<M, O>>
   codecs?: ParamCodecs<MergeParams<M, O>>
+  protectedParams?: ProtectedParams<MergeParams<M, O>>
   historyMode?: HistoryMode
   resetOnChange?: ResetOnChangeRules<MergeParams<M, O>>
   paginationStrategy?: PaginationStrategy<MergeParams<M, O>>
@@ -115,12 +148,14 @@ export const useMagicSearchParams = <
   omitParamsByValues = [] as Array<OmitParamValue>,
   coerceParams = {} as CoerceParams<MergeParams<M, O>>,
   codecs = {} as ParamCodecs<MergeParams<M, O>>,
+  protectedParams = {} as ProtectedParams<MergeParams<M, O>>,
   historyMode = 'push',
   resetOnChange = {} as ResetOnChangeRules<MergeParams<M, O>>,
   paginationStrategy,
   unknownParamsPolicy = 'drop'
 }: UseMagicSearchParamsOptions<M, O>) => {
   type Params = MergeParams<M, O>
+  type RequestParams = RequestSafeParams<M, O>
   type Keys = ParamKey<Params>
   type KeepParams = Partial<Record<Keys, boolean>>
 
@@ -285,12 +320,115 @@ export const useMagicSearchParams = <
     return updatedParams
   }
 
+  type BufferLike = {
+    from(input: string, encoding: 'utf8' | 'base64'): { toString(encoding: 'base64' | 'utf8'): string }
+  }
+
+  const runtimeBuffer = (globalThis as { Buffer?: BufferLike }).Buffer
+
+  const encodeBase64 = (value: string) => {
+    if (runtimeBuffer) {
+      return runtimeBuffer.from(value, 'utf8').toString('base64')
+    }
+
+    if (typeof btoa !== 'undefined' && typeof TextEncoder !== 'undefined') {
+      const bytes = new TextEncoder().encode(value)
+      let binary = ''
+      for (const byte of bytes) {
+        binary += String.fromCharCode(byte)
+      }
+      return btoa(binary)
+    }
+
+    throw new Error('Base64 encoding is not supported in this environment')
+  }
+
+  const decodeBase64 = (value: string) => {
+    if (runtimeBuffer) {
+      return runtimeBuffer.from(value, 'base64').toString('utf8')
+    }
+
+    if (typeof atob !== 'undefined' && typeof TextDecoder !== 'undefined') {
+      const binary = atob(value)
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+      return new TextDecoder().decode(bytes)
+    }
+
+    throw new Error('Base64 decoding is not supported in this environment')
+  }
+
+  const encodeBase64Url = (value: string) =>
+    encodeBase64(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+
+  const decodeBase64Url = (value: string) => {
+    const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=')
+    return decodeBase64(padded)
+  }
+
+  const serializeProtectedParamValue = (value: unknown) => {
+    if (value == null) return value as null | undefined
+    if (Array.isArray(value)) {
+      return value.map((item) => encodeBase64Url(String(item)))
+    }
+    return encodeBase64Url(String(value))
+  }
+
+  const parseProtectedParamValue = (value: string | string[] | null) => {
+    const decodeSafe = (input: string) => {
+      if (input === '') return ''
+
+      try {
+        return decodeBase64Url(input)
+      } catch {
+        return input
+      }
+    }
+
+    if (value == null) return ''
+    if (Array.isArray(value)) {
+      return value.map((item) => decodeSafe(item))
+    }
+    return decodeSafe(value)
+  }
+
+  const resolvedCodecs = useMemo(() => {
+    const nextCodecs: Record<string, ParamCodec<unknown>> = {
+      ...(codecs as Record<string, ParamCodec<unknown>>)
+    }
+
+    for (const key of Object.keys(protectedParams) as Array<ParamKey<MergeParams<M, O>>>) {
+      const protectedCodec = protectedParams[key]
+      if (!protectedCodec) continue
+
+      if (protectedCodec === true) {
+        nextCodecs[key] = {
+          parse: (value: string | string[] | null) => parseProtectedParamValue(value),
+          serialize: (value: unknown) => serializeProtectedParamValue(value)
+        }
+        continue
+      }
+
+      nextCodecs[key] = {
+        parse:
+          protectedCodec.parse ??
+          ((value: string | string[] | null) => parseProtectedParamValue(value)),
+        serialize:
+          (protectedCodec.serialize as
+            | ((value: unknown, context: { key: string }) => string | string[] | null | undefined)
+            | undefined) ?? ((value: unknown) => serializeProtectedParamValue(value))
+      }
+    }
+
+    return nextCodecs
+  }, [codecs, protectedParams]) as Record<string, ParamCodec<unknown>>
+
   const transformParamsToURLSearch = (params: Record<string, unknown>): URLSearchParams => {
     const newParam: URLSearchParams = new URLSearchParams()
     const paramsKeys = Object.keys(params)
 
     for (const key of paramsKeys) {
-      const codec = codecs[key as keyof MergeParams<M, O>]
+      const codec = resolvedCodecs[key]
       if (codec?.serialize) {
         const serializedValue = (
           codec.serialize as (
@@ -404,7 +542,7 @@ export const useMagicSearchParams = <
    */
   const convertOriginalType = (key: string) => {
     const rawValue = getRawParamValue(key)
-    const codec = codecs[key as keyof MergeParams<M, O>]
+    const codec = resolvedCodecs[key]
     if (codec?.parse) {
       return codec.parse(rawValue, { key, searchParams })
     }
@@ -543,6 +681,17 @@ export const useMagicSearchParams = <
     return paramsObj
   }
 
+  const sanitizeParamsForRequest = (params: Params): RequestParams => {
+    return Object.entries(params).reduce((acc, [key, value]) => {
+      if (value === '' || value == null) {
+        return acc
+      }
+
+      ;(acc as Record<string, unknown>)[key] = value
+      return acc
+    }, {} as RequestParams)
+  }
+
   // Optimization: While params are not updated, URL params are not recalculated.
   const CURRENT_PARAMS_URL: Record<string, unknown> = useMemo(() => {
     return arraySerialization === 'brackets'
@@ -553,7 +702,11 @@ export const useMagicSearchParams = <
   /**
    * Gets current URL params and converts to original types if desired.
    */
-  const getParams = ({ convert = true } = {}): MergeParams<M, O> => {
+  function getParams(options: { convert: false; forRequest?: boolean }): Params
+  function getParams(options: { convert?: true; forRequest: true }): RequestParams
+  function getParams(options?: { convert?: true; forRequest?: false }): Params
+  function getParams(options: { convert: boolean; forRequest?: boolean }): Params | RequestParams
+  function getParams({ convert = true, forRequest = false }: { convert?: boolean; forRequest?: boolean } = {}) {
     const params = (convert === true
       ? PARAM_ORDER
       : Object.keys(CURRENT_PARAMS_URL)
@@ -582,7 +735,11 @@ export const useMagicSearchParams = <
       return acc
     }, {} as Record<string, unknown>)
 
-    return params as MergeParams<M, O>
+    if (convert === true && forRequest === true) {
+      return sanitizeParamsForRequest(params as Params)
+    }
+
+    return params as Params
   }
 
   type ParamReturn<K extends Keys, T extends boolean> = T extends true

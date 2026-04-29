@@ -348,6 +348,36 @@ describe('useMagicSearchParams advanced features', () => {
     expect(params.only_unmapped).toBe('')
   })
 
+  it('getParams forRequest should omit empty optional params while preserving mandatory params', () => {
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1, limit: 20 as const },
+          optional: {
+            search: '',
+            status: '' as 'approved' | 'pending' | '',
+            is_verified: '' as boolean | '',
+            is_company_verified: '' as boolean | ''
+          },
+          coerceParams: {
+            is_verified: 'boolean',
+            is_company_verified: 'boolean'
+          },
+          omitParamsByValues: ['all']
+        }),
+      {
+        wrapper: Wrapper
+      }
+    )
+
+    const params = result.current.getParams({ convert: true, forRequest: true })
+    expect(params).toEqual({ page: 1, limit: 20 })
+    expect('search' in params).toBe(false)
+    expect('status' in params).toBe(false)
+    expect('is_verified' in params).toBe(false)
+    expect('is_company_verified' in params).toBe(false)
+  })
+
   it('coerceParams boolean should keep optional boolean union as empty for empty or invalid url values', () => {
     const emptyEntries = ['/?page=1&page_size=50&only_unmapped=']
     const invalidEntries = ['/?page=1&page_size=50&only_unmapped=trueff']
@@ -384,6 +414,43 @@ describe('useMagicSearchParams advanced features', () => {
     expect(invalidResult.current.getParams({ convert: true }).only_unmapped).toBe('')
   })
 
+  it('getParams forRequest should omit optional boolean unions when absent, empty, or invalid', () => {
+    const emptyEntries = ['/?page=1&page_size=50&only_unmapped=']
+    const invalidEntries = ['/?page=1&page_size=50&only_unmapped=trueff']
+
+    const createHook = (initialEntries?: string[]) =>
+      renderHook(
+        () =>
+          useMagicSearchParams({
+            mandatory: { page: 1, page_size: 50 },
+            optional: { only_unmapped: '' as boolean | '' },
+            coerceParams: {
+              only_unmapped: 'boolean'
+            }
+          }),
+        {
+          wrapper: ({ children }) => <Wrapper initialEntries={initialEntries}>{children}</Wrapper>
+        }
+      )
+
+    const { result: emptyResult } = createHook(emptyEntries)
+    const { result: invalidResult } = createHook(invalidEntries)
+    const { result: absentResult } = createHook()
+
+    expect(emptyResult.current.getParams({ convert: true, forRequest: true })).toEqual({
+      page: 1,
+      page_size: 50
+    })
+    expect(invalidResult.current.getParams({ convert: true, forRequest: true })).toEqual({
+      page: 1,
+      page_size: 50
+    })
+    expect(absentResult.current.getParams({ convert: true, forRequest: true })).toEqual({
+      page: 1,
+      page_size: 50
+    })
+  })
+
   it('coerceParams boolean should keep mandatory booleans strict', () => {
     const initialEntries = ['/?page=1&page_size=50&only_is_active=trueff']
 
@@ -404,6 +471,181 @@ describe('useMagicSearchParams advanced features', () => {
     const params = result.current.getParams({ convert: true })
     expect(params.only_is_active).toBe(true)
     expect(typeof params.only_is_active).toBe('boolean')
+  })
+
+  it('getParams forRequest should preserve valid boolean values, zero, and false', () => {
+    const initialEntries = ['/?page=1&page_size=50&only_unmapped=false&amount=0']
+
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1, page_size: 50 },
+          optional: {
+            only_unmapped: '' as boolean | '',
+            amount: '' as number | ''
+          },
+          coerceParams: {
+            only_unmapped: 'boolean',
+            amount: 'number'
+          }
+        }),
+      {
+        wrapper: ({ children }) => <Wrapper initialEntries={initialEntries}>{children}</Wrapper>
+      }
+    )
+
+    expect(result.current.getParams({ convert: true, forRequest: true })).toEqual({
+      page: 1,
+      page_size: 50,
+      only_unmapped: false,
+      amount: 0
+    })
+  })
+
+  it('getParams forRequest should preserve valid optional string unions and omit empty ones', () => {
+    const emptyEntries = ['/?page=1&status=']
+    const validEntries = ['/?page=1&status=approved']
+
+    const createHook = (initialEntries: string[]) =>
+      renderHook(
+        () =>
+          useMagicSearchParams({
+            mandatory: { page: 1 },
+            optional: { status: '' as 'approved' | 'pending' | '' }
+          }),
+        {
+          wrapper: ({ children }) => <Wrapper initialEntries={initialEntries}>{children}</Wrapper>
+        }
+      )
+
+    const { result: emptyResult } = createHook(emptyEntries)
+    const { result: validResult } = createHook(validEntries)
+
+    expect(emptyResult.current.getParams({ convert: true, forRequest: true })).toEqual({
+      page: 1
+    })
+    expect(validResult.current.getParams({ convert: true, forRequest: true })).toEqual({
+      page: 1,
+      status: 'approved'
+    })
+  })
+
+  it('getParams forRequest should not apply omitParamsByValues when reading request params', () => {
+    const initialEntries = ['/?page=1&status=all']
+
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1 },
+          optional: { status: '' as 'all' | 'approved' | '' },
+          omitParamsByValues: ['all']
+        }),
+      {
+        wrapper: ({ children }) => <Wrapper initialEntries={initialEntries}>{children}</Wrapper>
+      }
+    )
+
+    expect(result.current.getParams({ convert: true })).toEqual({
+      page: 1,
+      status: 'all'
+    })
+    expect(result.current.getParams({ convert: true, forRequest: true })).toEqual({
+      page: 1,
+      status: 'all'
+    })
+  })
+
+  it('protectedParams true should obfuscate URL values and decode them on getParams', () => {
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1 },
+          optional: { commerce_id: '' },
+          protectedParams: {
+            commerce_id: true
+          }
+        }),
+      {
+        wrapper: Wrapper
+      }
+    )
+
+    act(() => {
+      result.current.updateParams({
+        newParams: {
+          commerce_id: 'commerce-123'
+        }
+      })
+    })
+
+    const rawParams = result.current.getParams({ convert: false })
+    const decodedParams = result.current.getParams({ convert: true })
+
+    expect(rawParams.commerce_id).toBe('Y29tbWVyY2UtMTIz')
+    expect(result.current.searchParams.get('commerce_id')).toBe('Y29tbWVyY2UtMTIz')
+    expect(decodedParams.commerce_id).toBe('commerce-123')
+  })
+
+  it('protectedParams should use custom parse and serialize overrides when provided', () => {
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1 },
+          optional: { user_id: '' },
+          protectedParams: {
+            user_id: {
+              serialize: (value) => `safe-${String(value)}`,
+              parse: (value) => String(Array.isArray(value) ? value[0] : value ?? '').replace(/^safe-/, '')
+            }
+          }
+        }),
+      {
+        wrapper: Wrapper
+      }
+    )
+
+    act(() => {
+      result.current.updateParams({
+        newParams: {
+          user_id: 'user-9'
+        }
+      })
+    })
+
+    expect(result.current.searchParams.get('user_id')).toBe('safe-user-9')
+    expect(result.current.getParams({ convert: true }).user_id).toBe('user-9')
+    expect(result.current.getParams({ convert: false }).user_id).toBe('safe-user-9')
+  })
+
+  it('protectedParams should still allow numeric coercion after decoding', () => {
+    const { result } = renderHook(
+      () =>
+        useMagicSearchParams({
+          mandatory: { page: 1 },
+          optional: { user_id: '' as number | '' },
+          protectedParams: {
+            user_id: true
+          },
+          coerceParams: {
+            user_id: 'number'
+          }
+        }),
+      {
+        wrapper: Wrapper
+      }
+    )
+
+    act(() => {
+      result.current.updateParams({
+        newParams: {
+          user_id: 42
+        }
+      })
+    })
+
+    expect(result.current.searchParams.get('user_id')).toBe('NDI')
+    expect(result.current.getParams({ convert: true }).user_id).toBe(42)
+    expect(typeof result.current.getParams({ convert: true }).user_id).toBe('number')
   })
 
   it('updateParams should allow empty string as remove signal for optional params', () => {
