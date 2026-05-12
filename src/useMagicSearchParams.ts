@@ -1213,7 +1213,8 @@ export const useMagicSearchParams = <
           newParams: {
             ...defaultParams,
             ...forceParams
-          }
+          },
+          historyMode: 'replace'
         })
         return
       }
@@ -1225,7 +1226,7 @@ export const useMagicSearchParams = <
 
       if (keysDefaultParams.length > 0 && isIncludesForcedParams) {
         if (defaultParamsString === paramsUrlString) return
-        updateParams({ newParams: defaultParams })
+        updateParams({ newParams: defaultParams, historyMode: 'replace' })
       }
     }
 
