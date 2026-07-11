@@ -24,7 +24,7 @@
     "pagination",
     "sorting"
   ],
-  "version": "2.4.4",
+  "version": "2.4.5",
   "private": false,
   "license": "MIT",
   "main": "dist/index.cjs",
@@ -39,6 +39,11 @@
     "node": ">=18"
   },
   "packageManager": "pnpm@10.7.1",
+  "pnpm": {
+    "overrides": {
+      "ws": "^8.21.0"
+    }
+  },
   "scripts": {
     "start": "tsup --watch",
     "dev": "tsup --watch",
@@ -84,19 +89,20 @@
   ],
   "devDependencies": {
     "@size-limit/preset-small-lib": "^11.2.0",
+    "@testing-library/react": "^16.3.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
-    "@testing-library/react": "^16.3.0",
     "husky": "^9.1.7",
     "jsdom": "^26.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.0.0",
+    "react-router-dom": "^7.15.0",
     "size-limit": "^11.2.0",
-    "tsup": "^8.5.0",
     "tslib": "^2.8.1",
+    "tsup": "^8.5.0",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
+    "vite": "7.3.5",
+    "vitest": "^3.2.6"
   },
   "exports": {
     ".": {
